@@ -1,143 +1,44 @@
 # Nuke built-in rules and variables.
-override MAKEFLAGS += -rR
+MAKEFLAGS += -rR
+.SUFFIXES:
 
-# This is the name that our final kernel executable will have.
+# This is the name that our final executable will have.
 # Change as needed.
-override KERNEL := kernel
+override OUTPUT := kernel
 
 # Convenience macro to reliably declare user overridable variables.
-define DEFAULT_VAR =
-    ifeq ($(origin $1),default)
-        override $(1) := $(2)
-    endif
-    ifeq ($(origin $1),undefined)
-        override $(1) := $(2)
-    endif
-endef
+override USER_VARIABLE = $(if $(filter $(origin $(1)),default undefined),$(eval override $(1) := $(2)))
 
-# It is suggested to use a custom built cross toolchain to build a kernel.
-# We are using the standard "cc" here, it may work by using
-# the host system's toolchain, but this is not guaranteed.
-override DEFAULT_CC := cc
-$(eval $(call DEFAULT_VAR,CC,$(DEFAULT_CC)))
+# Target architecture to build for. Default to x86_64.
+$(call USER_VARIABLE,KARCH,x86_64)
 
-# Same thing for "ld" (the linker).
-override DEFAULT_LD := ld
-$(eval $(call DEFAULT_VAR,LD,$(DEFAULT_LD)))
-
-# User controllable C flags.
-# -Wno-address-of-packed-member is added because GCC is a bit overzealous about emitting this warning
-# and will emit it even when the structure does have good alignment on the target platform.
-# I don't like turning warnings off, but GCC have kind of forced my hand here...
-override DEFAULT_CFLAGS := -g -O2 -pipe -Werror -Wno-address-of-packed-member -Isrc/lai/include
-$(eval $(call DEFAULT_VAR,CFLAGS,$(DEFAULT_CFLAGS)))
-
-# User controllable C preprocessor flags. We set none by default.
-override DEFAULT_CPPFLAGS :=
-$(eval $(call DEFAULT_VAR,CPPFLAGS,$(DEFAULT_CPPFLAGS)))
-
-# User controllable nasm flags.
-override DEFAULT_NASMFLAGS := -F dwarf -g
-$(eval $(call DEFAULT_VAR,NASMFLAGS,$(DEFAULT_NASMFLAGS)))
-
-# User controllable linker flags. We set none by default.
-override DEFAULT_LDFLAGS :=
-$(eval $(call DEFAULT_VAR,LDFLAGS,$(DEFAULT_LDFLAGS)))
-
-# Internal C flags that should not be changed by the user.
-override CFLAGS += \
-	-Iinclude \
-    -Wall \
-    -Wextra \
-    -Wreturn-type \
-    -std=gnu11 \
-    -ffreestanding \
-    -fno-stack-protector \
-    -fno-stack-check \
-    -fno-lto \
-    -fPIE \
-    -m64 \
-    -march=x86-64 \
-    -mno-80387 \
-    -mno-mmx \
-    -mno-sse \
-    -mno-sse2 \
-    -mno-red-zone
-
-ifdef COTTAGE_DEBUG
-    override CFLAGS += -DCOTTAGE_DEBUG
+ifeq ($(RUST_TARGET),)
+    override RUST_TARGET := $(KARCH)-unknown-none
+	ifeq ($(KARCH),riscv64)
+    	override RUST_TARGET := riscv64gc-unknown-none-elf
+	endif
 endif
 
+ifeq ($(RUST_PROFILE),)
+    override RUST_PROFILE := dev
+endif
 
-
-# Internal C preprocessor flags that should not be changed by the user.
-override CPPFLAGS := \
-	-I include \
-    -I src \
-    $(CPPFLAGS) \
-    -MMD \
-    -MP
-
-# Internal linker flags that should not be changed by the user.
-override LDFLAGS += \
-    -m elf_x86_64 \
-    -Map bin/kernel.map \
-    -nostdlib \
-    -static \
-    -pie \
-    --no-dynamic-linker \
-    -z text \
-    -z max-page-size=0x1000 \
-    -T linker.ld
-
-# Internal nasm flags that should not be changed by the user.
-override NASMFLAGS += \
-    -Wall \
-    -f elf64
-
-# Use "find" to glob all *.c, *.S, and *.asm files in the tree and obtain the
-# object and header dependency file names.
-override CFILES := $(shell cd src && find -L . -type f -name '*.c')
-override ASFILES := $(shell cd src && find -L . -type f -name '*.S')
-override NASMFILES := $(shell cd src && find -L . -type f -name '*.asm')
-override OBJ := $(addprefix obj/,$(CFILES:.c=.c.o) $(ASFILES:.S=.S.o) $(NASMFILES:.asm=.asm.o))
-override HEADER_DEPS := $(addprefix obj/,$(CFILES:.c=.c.d) $(ASFILES:.S=.S.d))
+override RUST_PROFILE_SUBDIR := $(RUST_PROFILE)
+ifeq ($(RUST_PROFILE),dev)
+    override RUST_PROFILE_SUBDIR := debug
+endif
 
 # Default target.
 .PHONY: all
-all: bin/$(KERNEL)
-
-src/limine.h:
-	curl -Lo $@ https://github.com/limine-bootloader/limine/raw/trunk/limine.h
-
-# Link rules for the final kernel executable.
-bin/$(KERNEL): GNUmakefile linker.ld $(OBJ)
-	mkdir -p "$$(dirname $@)"
-	$(LD) $(OBJ) $(LDFLAGS) -o $@
-
-# Include header dependencies.
--include $(HEADER_DEPS)
-
-# Compilation rules for *.c files.
-obj/%.c.o: src/%.c GNUmakefile src/limine.h
-	mkdir -p "$$(dirname $@)"
-	$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
-
-# Compilation rules for *.S files.
-obj/%.S.o: src/%.S GNUmakefile src/limine.h
-	mkdir -p "$$(dirname $@)"
-	$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
-
-# Compilation rules for *.asm (nasm) files.
-obj/%.asm.o: src/%.asm GNUmakefile
-	mkdir -p "$$(dirname $@)"
-	nasm $(NASMFLAGS) $< -o $@
+all:
+	RUSTFLAGS="-C relocation-model=static" cargo build --target $(RUST_TARGET) --profile $(RUST_PROFILE)
+	cp target/$(RUST_TARGET)/$(RUST_PROFILE_SUBDIR)/$$(cd target/$(RUST_TARGET)/$(RUST_PROFILE_SUBDIR) && find -maxdepth 1 -perm -111 -type f) kernel
 
 # Remove object files and the final executable.
 .PHONY: clean
 clean:
-	rm -rf bin obj
+	cargo clean
+	rm -rf kernel
 
 .PHONY: distclean
 distclean: clean
-	rm -f src/limine.h
