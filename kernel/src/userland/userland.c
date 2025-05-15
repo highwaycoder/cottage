@@ -37,21 +37,30 @@ process_t* userland_start_program(
     const char* stderr,
     size_t recursion_depth)
 {
+    klog("user", "starting user program");
     vfs_node_t* prog_node = fs_get_node(cwd, path, true);
     if(prog_node == NULL)
     {
         // todo: error handling - we need to work out how to handle programs failing to load
+        klog("user", "Could not load program: fs_get_node returned NULL");
         return NULL;
     }
+    klog("user", "Got prog_node %p", prog_node);
     resource_t* prog = prog_node->resource;
+
+    klog("user", "prog resource %p", prog);
 	// create a new, blank pagemap
     pagemap_t* pagemap = malloc(sizeof(pagemap_t));
+    klog("user", "pagemap %p", pagemap);
     * pagemap = new_pagemap();
+    klog("user", "pagemap initialised successfully");
 
     char shebang[2] = {0};
     prog->read(prog, NULL, &shebang, 0, 2); 
+    klog("user", "successfully read the first 2 bytes to check for shebang");
     if (strncmp(shebang, "#!", 2) == 0) // loading a script
     {
+        klog("user", "determined that we are loading a script for execution by an interpreter");
         char interpreter[SHEBANG_MAX_INT_LEN] = {0};
         char arg[SHEBANG_MAX_ARG_LEN] = {0};
         size_t final_argc = 1; // count the interpreter to begin with
@@ -91,19 +100,25 @@ process_t* userland_start_program(
     }
     else // loading an ELF file
     {
+        klog("user", "determined that we are loading an ELF file");
         elf_info_t elf_info;
+        klog("user", "running elf_load");
         bool success = elf_load(pagemap, prog, 0, &elf_info);
         if(!success)
         {
+            klog("user", "elf_load fail");
             return NULL;
         }
+        klog("user", "elf_load succeeded");
         void* entry_point = NULL;
         if(elf_info.ld_path == NULL)
         {
+            klog("user", "ld_path was NULL");
             entry_point = (void*)elf_info.entry;
         }
         else
         {
+            klog("user", "ld_path was not NULL");
             vfs_node_t* ld_node = fs_get_node(vfs_root, elf_info.ld_path, true);
             if(ld_node == NULL)
             {
@@ -113,9 +128,11 @@ process_t* userland_start_program(
             elf_load(pagemap, ld_node->resource, ELF_LD_LOAD_BASE, &ld_info);
             entry_point = (void*)ld_info.entry;
         }
+        klog("user", "entry point = %p", entry_point);
         // fork()
         if(replace)
         {
+            klog("user", "replace = true");
             // use a sensible default size for new process names
             // maybe this should be pulled out into a macro or global const?
             const int default_name_size = 32;
@@ -175,6 +192,7 @@ process_t* userland_start_program(
         }
         else // execve()
         {
+            klog("user", "replace = false (execve)");
             const int default_name_size = 32;
             thread_t* current_thread = get_current_thread();
             process_t* process = current_thread->process;
@@ -192,10 +210,13 @@ process_t* userland_start_program(
 
             switch_pagemap(&g_kernel_pagemap);
             current_thread->process = kernel_process;
+            klog("user", "pagemap switched");
 
             delete_pagemap(old_pagemap);
             process->thread_stack_top = PROC_DEFAULT_THREAD_STACK_TOP;
             process->mmap_anon_non_fixed_base = PROC_DEFAULT_MMAP_ANON_NON_FIXED_BASE;
+
+            klog("user", "old pagemap deleted");
 
             for(size_t i = 0; i < process->thread_count; i++)
             {
@@ -205,7 +226,9 @@ process_t* userland_start_program(
                 process->thread_count--;
             }
 
+            klog("user", "creating new user thread");
             new_user_thread(process, true, entry_point, NULL, 0, argc, argv, envc, envp, elf_info, true);
+            klog("user", "new user thread created");
 
 			// for some reason, vinix frees these two arrays
             // but we don't know who has made them - we might be freeing

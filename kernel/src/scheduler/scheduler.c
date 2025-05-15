@@ -91,13 +91,14 @@ void scheduler_isr(__attribute__((unused)) uint32_t num, __attribute__((unused))
         lock_release(&current_thread->yield_await);
 
         // the happy case, we're just running the same thread again
-        if (new_index == cpu->last_run_queue_index)
+        if (new_index == cpu->last_run_queue_index && current_thread->is_in_queue)
         {
             lapic_eoi();
             lapic_timer_oneshot(cpu, scheduler_vector, current_thread->timeslice);
             return;
         }
         // switch context
+        current_thread->cpu_state = *status;
         current_thread->gs_base = get_kernel_gs_base();
         current_thread->fs_base = get_fs_base();
         current_thread->cr3 = read_cr3();
@@ -111,8 +112,8 @@ void scheduler_isr(__attribute__((unused)) uint32_t num, __attribute__((unused))
     if (new_index == -1)
     {
         lapic_eoi();
-        set_gs_base(cpu->cpu_number);
-        set_kernel_gs_base(cpu->cpu_number);
+        set_gs_base((uint64_t)&cpu->cpu_number);
+        set_kernel_gs_base((uint64_t)&cpu->cpu_number);
         cpu->last_run_queue_index = 0;
         atomic_store(&cpu->is_idle, true);
         if (atomic_load(&waiting_event_count) == 0 && atomic_load(&working_cpus) == 0)
@@ -128,6 +129,7 @@ void scheduler_isr(__attribute__((unused)) uint32_t num, __attribute__((unused))
     cpu->last_run_queue_index = new_index;
 
     set_gs_base((uint64_t)current_thread);
+    klog("sched", "set current thread to %p", current_thread);
     if (current_thread->cpu_state.cs == USER_CODE_SEGMENT)
     {
         set_kernel_gs_base(current_thread->gs_base);
@@ -221,6 +223,7 @@ bool scheduler_dequeue_thread(thread_t* thread)
             return true;
         }
     }
+    klog("sched", "Could not find thread, but thread thinks it is running (WTF?)");
 
     // did not find thread, but thread thinks it is running
     // should this be a panic?! kind of fucked up situation tbh
@@ -269,15 +272,16 @@ void scheduler_dequeue_and_die()
 {
     asm volatile ( "cli":::"memory" );
     thread_t* t = get_current_thread();
+    klog("sched", "current thread = %p", t);
 
     scheduler_dequeue_thread(t);
 
-    for(size_t i = 0; i < PROC_MAX_STACKS_PER_THREAD; i++)
-    {
-        pmm_free(t->stacks[i], STACK_SIZE / PAGE_SIZE);
-    }
+    // for(size_t i = 0; i < PROC_MAX_STACKS_PER_THREAD; i++)
+    // {
+    //     pmm_free(t->stacks[i], STACK_SIZE / PAGE_SIZE);
+    // }
 
-    free(t);
+    //free(t);
     scheduler_yield(false);
     while(1);
 }

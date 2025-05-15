@@ -1,3 +1,4 @@
+#include <console/console.h>
 #include <acpi/acpi.h>
 #include <scheduler/scheduler.h>
 #include <devicetree/dtb.h>
@@ -64,7 +65,6 @@ static volatile struct limine_paging_mode_request paging_request = {
     .id = LIMINE_PAGING_MODE_REQUEST,
     .revision = 0,
     .mode = LIMINE_PAGING_MODE_DEFAULT,
-    .flags = 0,
 };
 
 static volatile struct limine_kernel_address_request kernel_address_request = {
@@ -299,7 +299,7 @@ void kmain_thread(void* arg)
 
     klog("main", "Initializing console");
     // todo: write console_init
-    //console_init();
+    console_init();
     klog("main", "Console initialized");
 
     process_t* init_process = userland_start_program(false, 
@@ -320,5 +320,9 @@ void kmain_thread(void* arg)
         panic("Could not start /sbin/init");
     }
 
+    klog("main", "Init thread started, handing over control now");
+
     scheduler_dequeue_and_die();
+
+    klog("main", "yikes, kernel got back control from init! This is bad.");
 }

@@ -50,6 +50,9 @@ uint64_t abort_vector;
 void handle_pagefault(__attribute__((unused)) uint32_t num, __attribute__((unused)) cpu_status_t* cpu_state)
 {
     klog("isr", "Handling pagefault");
+    void* faulting_address = NULL;
+    asm volatile("mov %%cr2, %0" : "=r" (faulting_address));
+    klog("isr", "cr2=%lp rip=%lp", faulting_address, cpu_state->rip);
     panic("Can't handle PF properly yet");
 }
 
@@ -71,9 +74,10 @@ void handle_exception(uint32_t num, cpu_status_t* cpu_state)
     }
     else
     {
-        klog("isr", "Exception num=%d errno=%d", num, cpu_state->error_code);
-        klog("isr", "rip=%x rsi=%x", cpu_state->rip, cpu_state->rsi);
-        klog("isr", "rsp=%x", cpu_state->rsp);
+        klog("isr", "Exception raised:");
+        klog("isr", "\tException num=%d errno=%d", num, cpu_state->error_code);
+        klog("isr", "\t\trip=%lx rsi=%lx", cpu_state->rip, cpu_state->rsi);
+        klog("isr", "\t\trsp=%lx", cpu_state->rsp);
         panic("Caught exception in kernel: %s (aka 0x%x)", exception_names[num], num);
     }
 }

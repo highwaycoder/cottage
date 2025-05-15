@@ -36,7 +36,7 @@ void dump_task_state_segment(const task_state_segment_t *tss) {
 
 void dump_local_cpu(const local_cpu_t *cpu) {
     term_printf("Local CPU Dump:\n");
-    term_printf("  CPU Number: %x Zero: %x\n", cpu->cpu_number, cpu->zero);
+    term_printf("  CPU Number: %x Zero (current thread?): %x\n", cpu->cpu_number, cpu->zero);
     dump_task_state_segment(&(cpu->tss));
     term_printf("  LAPIC ID: %x LAPIC Timer Freq: %x\n", cpu->lapic_id, cpu->lapic_timer_freq);
     term_printf("  Online: %x Is Idle: %d\n", cpu->online, cpu->is_idle);
