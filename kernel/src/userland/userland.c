@@ -196,6 +196,7 @@ process_t* userland_start_program(
             const int default_name_size = 32;
             thread_t* current_thread = get_current_thread();
             process_t* process = current_thread->process;
+            klog("user", "process = %lp", process);
             pagemap_t* old_pagemap = process->pagemap;
 
             process->pagemap = pagemap;

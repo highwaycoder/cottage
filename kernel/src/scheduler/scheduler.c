@@ -15,6 +15,7 @@
 #include <string.h>
 #include <debug/debug.h>
 #include <fs/fs.h>
+#include <term/term.h>
 
 // use 2MB stack, similar to Linux
 #define STACK_SIZE (uint64_t)(0x200000)
@@ -31,9 +32,13 @@ _Atomic uint64_t working_cpus = 0;
 int64_t get_next_thread(int64_t orig_i);
 void scheduler_isr(uint32_t num, cpu_status_t *status);
 
+// debug function found in panic.c (forward declared here because it isn't in panic.h)
+void dump_local_cpu(const local_cpu_t *cpu);
+
 int64_t get_next_thread(int64_t orig_i)
 {
     uint64_t cpu_number = cpu_get_current()->cpu_number;
+    klog("sched", "Getting next thread for cpu %d", cpu_number);
     int64_t index = orig_i + 1;
 
     while (1)
@@ -111,6 +116,7 @@ void scheduler_isr(__attribute__((unused)) uint32_t num, __attribute__((unused))
 
     if (new_index == -1)
     {
+        klog("sched", "new_index == -1");
         lapic_eoi();
         set_gs_base((uint64_t)&cpu->cpu_number);
         set_kernel_gs_base((uint64_t)&cpu->cpu_number);
@@ -155,9 +161,12 @@ void scheduler_isr(__attribute__((unused)) uint32_t num, __attribute__((unused))
     cpu_status_t* new_cpu_state = &current_thread->cpu_state;
     if (new_cpu_state->cs == USER_CODE_SEGMENT)
     {
-        // todo: dispatch a signal
+        // todo: dispatch a signal?
         klog("sched", "Should dispatch signal but not yet implemented");
     }
+
+    klog("sched", "new_cpu_state = %lp", new_cpu_state);
+    dump_local_cpu(cpu);
 
     asm volatile(
         "movq %0, %%rsp\n"
@@ -181,13 +190,16 @@ void scheduler_isr(__attribute__((unused)) uint32_t num, __attribute__((unused))
         "popq %%r14\n"
         "popq %%r15\n"
         "addq $8, %%rsp\n"
+        
+        "cmpq $0x08, 8(%%rsp)\n"
+        "je 1f\n"
         "swapgs\n"
+        "1:\n"
         "iretq\n"
         :
         : "rm" (new_cpu_state)
         : "memory"
         );
-
 
     while (1);
 }

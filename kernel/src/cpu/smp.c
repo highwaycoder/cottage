@@ -224,7 +224,7 @@ local_cpu_t* cpu_get_current()
 
     uint64_t cpu_number = 0;
     asm volatile (
-        "movq %%gs:[0], %0"
+        "movq %%gs:0, %0"
         : "=r" (cpu_number)
     );
     return local_cpus[cpu_number];

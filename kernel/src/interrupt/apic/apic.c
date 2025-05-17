@@ -100,7 +100,7 @@ void lapic_timer_oneshot(local_cpu_t* local_cpu, uint8_t vector, uint64_t micros
     uint64_t ticks = micros * (local_cpu->lapic_timer_freq / 1000000);
     
     lapic_write(LAPIC_REG_TIMER, vector);
-    lapic_write(LAPIC_REG_TIMER_DIV, 0);
+    lapic_write(LAPIC_REG_TIMER_DIV, 0b1011);
     lapic_write(LAPIC_REG_TIMER_INITCNT, (uint32_t)ticks);
 }
 
