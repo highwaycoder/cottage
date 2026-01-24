@@ -76,7 +76,7 @@ This document tracks specific race conditions identified in the Cottage kernel a
 
 ## Completed Fixes
 
-- [x] **SCHED-1: `is_in_queue` non-atomic** (Fixed: commit TBD)
+- [x] **SCHED-1: `is_in_queue` non-atomic** (Fixed: commit 46adaef)
   - Issue: `bool is_in_queue` accessed without synchronization from multiple CPUs
   - Fix: Changed to `_Atomic bool` and updated all access sites to use atomic_load/atomic_store
 
