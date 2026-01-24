@@ -76,7 +76,7 @@ This document tracks specific race conditions identified in the Cottage kernel a
 
 ## Completed Fixes
 
-- [x] **TMPFS-1 & PMM-1: Minor fixes** (Fixed: commit TBD)
+- [x] **TMPFS-1 & PMM-1: Minor fixes** (Fixed: commit ca68308)
   - TMPFS: Use atomic_store for refcount initialization
   - PMM: Added documentation and proper lock initialization
 
