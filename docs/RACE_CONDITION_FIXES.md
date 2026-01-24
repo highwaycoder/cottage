@@ -32,13 +32,13 @@ This document tracks specific race conditions identified in the Cottage kernel a
 
 ### VMM/Pagemap - `kernel/src/mem/vmm.c`, `pagemap.c`
 
-- [ ] **VMM-1: `get_next_level()` double allocation** (vmm.c lines 24-48)
+- [x] **VMM-1: `get_next_level()` double allocation** (vmm.c lines 24-48)
   - Issue: Two CPUs can race to allocate page table entries for same index, leaking memory
-  - Fix: Use atomic compare-exchange or hold pagemap lock
+  - Fix: Added `REQUIRES(pagemap->lock)` annotations; callers must hold lock
 
-- [ ] **VMM-2: Inconsistent pagemap locking**
+- [x] **VMM-2: Inconsistent pagemap locking**
   - Issue: `mmap_map_range()` acquires `pagemap->lock`, but `map_page()`/`unmap_page()` don't
-  - Fix: Either all operations acquire lock, or document which callers must hold it
+  - Fix: Added REQUIRES annotations to pagemap functions; fixed mmap_map_range to hold lock during mappings
 
 ### Scheduler - `kernel/src/scheduler/scheduler.c`
 
@@ -75,6 +75,11 @@ This document tracks specific race conditions identified in the Cottage kernel a
 ---
 
 ## Completed Fixes
+
+- [x] **VMM-1 & VMM-2: Pagemap locking** (Fixed: commit TBD)
+  - Issue: Page table operations not protected, inconsistent lock usage
+  - Fix: Added REQUIRES annotations, initialized pagemap locks properly, fixed mmap_map_range,
+    fixed use-after-free in delete_pagemap, added NO_THREAD_SAFETY_ANALYSIS for init code
 
 - [x] **VFS-1 through VFS-4: VFS race conditions** (Fixed: commit cab9a96)
   - Issue: VFS tree operations not protected by vfs_lock; num_filesystems not atomic

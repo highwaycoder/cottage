@@ -48,8 +48,9 @@ uint64_t* get_next_level(uint64_t* current_level, uint64_t index, bool allocate)
 }
 
 
-// much of this is ported to C from VINIX OS, with adjustments as necessary
-// for our purposes.
+// Much of this is ported to C from VINIX OS, with adjustments as necessary
+// for our purposes. Runs during single-threaded boot, no lock needed.
+NO_THREAD_SAFETY_ANALYSIS
 void vmm_init(uint64_t kernel_base_physical, uint64_t kernel_base_virtual, struct limine_memmap_response* memmap)
 {
     klog("vmm", "Kernel physical base: %x", kernel_base_physical);

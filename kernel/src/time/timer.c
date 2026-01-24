@@ -17,6 +17,8 @@ lock_t timers_lock;
 hpr_timer_t* armed_timers;
 size_t armed_timers_count;
 
+// Runs during single-threaded boot, no lock needed
+NO_THREAD_SAFETY_ANALYSIS
 void hpet_init()
 {
     // find the HPET table

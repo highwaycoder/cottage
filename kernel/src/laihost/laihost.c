@@ -11,6 +11,7 @@
 #include <io/io.h>
 #include <mem/pagemap.h>
 #include <mem/pmm.h>
+#include <lock/lock.h>
 
 #include <pci/pci.h>
 
@@ -130,6 +131,8 @@ uint32_t laihost_ind(uint16_t port)
     return ind(port);
 }
 
+// LAI callback - runs during ACPI init (single-threaded)
+NO_THREAD_SAFETY_ANALYSIS
 void* laihost_map(size_t address, size_t count)
 {
     uint64_t virt_addr;
@@ -164,6 +167,8 @@ void* laihost_map(size_t address, size_t count)
     return (void*) virt_addr;
 }
 
+// LAI callback - runs during ACPI init (single-threaded)
+NO_THREAD_SAFETY_ANALYSIS
 void laihost_unmap(void* ptr, size_t count)
 {
     //bool unmap_page(pagemap_t* pagemap, uint64_t virt)

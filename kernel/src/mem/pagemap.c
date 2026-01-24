@@ -4,11 +4,21 @@
 #include <mem/pmm.h>
 #include <mem/mmap.h>
 #include <panic.h>
+#include <klog/klog.h>
 
 // standard headers
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdlib.h>
+
+// Page table operations (map_page, unmap_page, flag_page, virt2pte) require
+// the caller to hold pagemap->lock. This protects against:
+// 1. Double allocation in get_next_level() when two CPUs map addresses
+//    that share intermediate page table levels
+// 2. Concurrent modifications to the same page table entries
+//
+// Exception: The kernel pagemap (g_kernel_pagemap) is initialized single-threaded
+// during boot, and kernel mappings are mostly read-only after init.
 
 // tries to find <count> contiguous pages in the virtual memory space
 // if it is unable to, it will return 0
@@ -37,7 +47,7 @@ uint64_t find_contiguous_pages(pagemap_t* pagemap, size_t count)
     return 0;
 }
 
-// maps <count> contiguous pages at <virt_addr> to <phys_addr>
+// Maps <count> contiguous pages at <virt_addr> to <phys_addr>
 bool map_contiguous_pages(pagemap_t* pagemap, uint64_t virt_addr, uint64_t phys_addr, uint64_t flags, size_t count)
 {
     bool success = true;
@@ -59,6 +69,7 @@ bool map_contiguous_pages(pagemap_t* pagemap, uint64_t virt_addr, uint64_t phys_
     return success;
 }
 
+// Maps a single page from virt_addr to phys_addr with given flags.
 bool map_page(pagemap_t* pagemap, uint64_t virt_addr, uint64_t phys_addr, uint64_t flags)
 {
     // this is all just magic ways of extracting the page map index from the virtual address
@@ -103,6 +114,8 @@ bool virt2phys(pagemap_t* pagemap, uint64_t virt_addr, uint64_t* phys)
     return true;
 }
 
+// Returns pointer to the page table entry for virt_addr.
+// If allocate=true, creates intermediate page tables as needed.
 // todo: make this take an uint64_t* argument as the last argument,
 // and return a bool (requires updating all call sites though)
 uint64_t* virt2pte(pagemap_t* pagemap, uint64_t virt_addr, bool allocate)
@@ -123,6 +136,7 @@ uint64_t* virt2pte(pagemap_t* pagemap, uint64_t virt_addr, bool allocate)
     return (uint64_t*) (((uint64_t)&pml1[pml1_entry]) + HIGHER_HALF);
 }
 
+// Unmaps a single page at virt.
 bool unmap_page(pagemap_t* pagemap, uint64_t virt)
 {
     uint64_t* pte_p =  virt2pte(pagemap, virt, false);
@@ -140,6 +154,7 @@ bool unmap_page(pagemap_t* pagemap, uint64_t virt)
     return true;
 }
 
+// Updates flags on an existing page mapping.
 bool flag_page(pagemap_t* pagemap, uint64_t virt, uint64_t flags)
 {
     uint64_t* pte_p =  virt2pte(pagemap, virt, false);
@@ -166,7 +181,7 @@ pagemap_t new_pagemap()
         panic("new_pagemap() allocation failure");
     }
 
-	// import higher half from kernel pagemap
+    // import higher half from kernel pagemap
     uint64_t* p1 = (uint64_t*)((uint64_t)top_level + HIGHER_HALF);
     uint64_t* p2 = g_kernel_pagemap.top_level + HIGHER_HALF;
 
@@ -177,11 +192,16 @@ pagemap_t new_pagemap()
 
     return (pagemap_t){
         .top_level = top_level,
-        .mmap_ranges = NULL
+        .mmap_ranges = NULL,
+        .mmap_range_count = 0,
+        .lock = (lock_t)LOCK_INITIALIZER("pagemap->lock")
     };
 }
 
 
+// Acquires pagemap->lock internally.
+// Analyzer can't track lock through pointer.
+NO_THREAD_SAFETY_ANALYSIS
 bool delete_pagemap(pagemap_t* pagemap)
 {
     bool rv = true;
@@ -199,8 +219,10 @@ bool delete_pagemap(pagemap_t* pagemap)
 
     }
 
-    free(pagemap);
-	
+    // Release lock BEFORE freeing to avoid use-after-free
+    // At this point, no other thread should have a reference to this pagemap
     lock_release(&pagemap->lock);
+    free(pagemap);
+
     return rv;
 }

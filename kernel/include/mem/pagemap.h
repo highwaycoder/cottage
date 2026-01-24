@@ -11,24 +11,26 @@
 #define PTE_FLAG_USER (uint64_t)(1 << 2)
 
 typedef struct {
+    lock_t lock;  // Must be first for GUARDED_BY references
     void* top_level;
-    void** mmap_ranges;
-    size_t mmap_range_count;
-    lock_t lock;
+    void** mmap_ranges GUARDED_BY(lock);
+    size_t mmap_range_count GUARDED_BY(lock);
 } pagemap_t;
 
-// couple of helper functions to map multi-page regions
-uint64_t find_contiguous_pages(pagemap_t* pagemap, size_t count);
-bool map_contiguous_pages(pagemap_t* pagemap, uint64_t virt_addr, uint64_t phys_addr, uint64_t flags, size_t count);
+// Helper functions to map multi-page regions
+// These require the pagemap lock to be held
+uint64_t find_contiguous_pages(pagemap_t* pagemap, size_t count) REQUIRES(pagemap->lock);
+bool map_contiguous_pages(pagemap_t* pagemap, uint64_t virt_addr, uint64_t phys_addr, uint64_t flags, size_t count) REQUIRES(pagemap->lock);
 
-// the bulk of the actual page mapping functions
+// Page mapping functions - require pagemap->lock to be held
+// Exception: During single-threaded init (vmm_init), lock is not needed
 pagemap_t new_pagemap();
-bool map_page(pagemap_t* pagemap, uint64_t virt_addr, uint64_t phys_addr, uint64_t flags);
+bool map_page(pagemap_t* pagemap, uint64_t virt_addr, uint64_t phys_addr, uint64_t flags) REQUIRES(pagemap->lock);
 void switch_pagemap(pagemap_t* pagemap);
-uint64_t* virt2pte(pagemap_t* pagemap, uint64_t virt_addr, bool allocate);
-bool virt2phys(pagemap_t* pagemap, uint64_t virt_addr, uint64_t* phys);
-bool unmap_page(pagemap_t* pagemap, uint64_t virt);
-bool flag_page(pagemap_t* pagemap, uint64_t virt, uint64_t flags);
+uint64_t* virt2pte(pagemap_t* pagemap, uint64_t virt_addr, bool allocate) REQUIRES(pagemap->lock);
+bool virt2phys(pagemap_t* pagemap, uint64_t virt_addr, uint64_t* phys) REQUIRES(pagemap->lock);
+bool unmap_page(pagemap_t* pagemap, uint64_t virt) REQUIRES(pagemap->lock);
+bool flag_page(pagemap_t* pagemap, uint64_t virt, uint64_t flags) REQUIRES(pagemap->lock);
 bool delete_pagemap(pagemap_t* pagemap);
 
 static inline uint64_t read_cr0()

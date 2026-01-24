@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <io/io.h>
 #include <mem/pagemap.h>
+#include <lock/lock.h>
 #include <klog/klog.h>
 #include <acpi/acpi.h>
 #include <stddef.h>
@@ -85,6 +86,8 @@ void pci_writed(uint16_t bus, uint16_t device, uint16_t function, uint32_t regis
     outd(DATA_PORT, val);
 }
 
+// PCI enumeration runs during single-threaded boot
+NO_THREAD_SAFETY_ANALYSIS
 void enumerate_function(uint64_t address, uint64_t function, __attribute__((unused)) uint16_t bus, __attribute__((unused)) uint16_t device)
 {
     uint64_t offset = function << 12;
@@ -224,6 +227,8 @@ pci_bar_t pci_get_bar(uint32_t* bar0, int bar_num, uint16_t bus, uint16_t device
 	return bar;
 }
 
+// PCI enumeration runs during single-threaded boot
+NO_THREAD_SAFETY_ANALYSIS
 void enumerate_device(uint64_t bus_address, uint64_t device, uint16_t bus)
 {
     uint64_t offset = device << 15;
@@ -249,6 +254,8 @@ void enumerate_device(uint64_t bus_address, uint64_t device, uint16_t bus)
     }
 }
 
+// PCI enumeration runs during single-threaded boot
+NO_THREAD_SAFETY_ANALYSIS
 void enumerate_bus(uint64_t base_address, uint64_t bus)
 {
     uint64_t offset = bus << 20;

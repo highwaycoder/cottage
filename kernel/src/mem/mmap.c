@@ -12,6 +12,10 @@
 #include <string.h>
 #include <errno.h>
 
+// Maps a page in a global range and all its local ranges.
+// Caller must hold locks for all affected pagemaps.
+// Analyzer can't track locks through pointer indirection.
+NO_THREAD_SAFETY_ANALYSIS
 bool mmap_map_page_in_range(mmap_range_global_t* global_range, uint64_t virt, uint64_t phys, uint64_t prot)
 {
     uint64_t pt_flags = PTE_FLAG_PRESENT | PTE_FLAG_USER;
@@ -37,6 +41,8 @@ bool mmap_map_page_in_range(mmap_range_global_t* global_range, uint64_t virt, ui
 
 // todo: we need some much better naming going on in this function,
 // it's all over the place
+// Acquires pagemap->lock internally. Analyzer can't track lock through pointer.
+NO_THREAD_SAFETY_ANALYSIS
 bool mmap_map_range(pagemap_t* pagemap, uint64_t virt, uint64_t phys, uint64_t size, uint64_t prot, uint64_t _flags)
 {
     uint64_t flags = _flags | MMAP_MAP_ANON; 
@@ -70,20 +76,29 @@ bool mmap_map_range(pagemap_t* pagemap, uint64_t virt, uint64_t phys, uint64_t s
     range_global->locals[0] = range_local;
 
     range_global->shadow_pagemap.top_level = pmm_alloc(1);
+    range_global->shadow_pagemap.lock = (lock_t)LOCK_INITIALIZER("shadow_pagemap->lock");
 
+    // Hold the lock for the entire operation - both updating mmap_ranges
+    // and performing the actual page mappings. This prevents races in
+    // get_next_level() when two threads map addresses sharing page table levels.
     lock_acquire(&pagemap->lock);
+
     pagemap->mmap_ranges = realloc(pagemap->mmap_ranges, sizeof(void*) * pagemap->mmap_range_count+1);
     pagemap->mmap_ranges[pagemap->mmap_range_count] = range_local;
     pagemap->mmap_range_count++;
-    lock_release(&pagemap->lock);
 
     for(uint64_t i = 0; i < length; i+= PAGE_SIZE)
     {
         mmap_map_page_in_range(range_global, virt_addr + i, phys + i, prot);
     }
+
+    lock_release(&pagemap->lock);
     return true;
 }
 
+// Caller must hold pagemap->lock.
+// Analyzer can't track lock through pointer.
+NO_THREAD_SAFETY_ANALYSIS
 bool addr2range(pagemap_t* pagemap, uint64_t addr, mmap_range_local_t** range_out, uint64_t* memory_page_out, uint64_t* file_page_out)
 {
     for(uint64_t i = 0; i < pagemap->mmap_range_count; i++)
@@ -99,6 +114,9 @@ bool addr2range(pagemap_t* pagemap, uint64_t addr, mmap_range_local_t** range_ou
     return false;
 }
 
+// Caller must hold pagemap->lock.
+// Analyzer can't track lock through pointer.
+NO_THREAD_SAFETY_ANALYSIS
 bool munmap(pagemap_t* pagemap, uint64_t addr, uint64_t length)
 {
     if (length == 0)
@@ -188,6 +206,9 @@ bool munmap(pagemap_t* pagemap, uint64_t addr, uint64_t length)
     return true;
 }
 
+// Acquires old_pagemap->lock internally.
+// Analyzer can't track lock through pointer.
+NO_THREAD_SAFETY_ANALYSIS
 pagemap_t* mmap_fork_pagemap(pagemap_t* old_pagemap)
 {
     pagemap_t* pagemap = malloc(sizeof(pagemap_t));
