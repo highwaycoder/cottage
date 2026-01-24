@@ -26,14 +26,23 @@ make all-hdd      # Build HDD image (cottage.hdd)
 make run-uefi     # Run in QEMU with UEFI (recommended)
 make run          # Run in QEMU with BIOS
 make test         # Alias for run-uefi
+make test-headless           # Run headless (no GUI), for CI/automated testing
+make test-headless TIMEOUT=30  # Run headless with 30 second timeout
 make clean        # Clean build artifacts
 make distclean    # Full clean including dependencies (limine, ovmf)
 make ovmf         # Download nightly OVMF firmware
 ```
 
+### Testing with Timeout
+
+For automated testing or debugging, use `make test-headless TIMEOUT=<seconds>`:
+- Output goes to stdout via serial console
+- QEMU exits after the timeout (exit code 124 from `timeout` command, but make target succeeds)
+- Without TIMEOUT, runs until crash or Ctrl+C
+
 Debug build: `COTTAGE_DEBUG=1 make all`
 
-The Makefile uses `-j 8` for parallel compilation by default.
+The Makefile auto-detects CPU cores for parallel compilation. Override with `make JOBS=4` if needed.
 
 ## Architecture
 

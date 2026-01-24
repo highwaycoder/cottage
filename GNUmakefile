@@ -1,6 +1,7 @@
 # Nuke built-in rules and variables.
-# make sure to change the `-j` flag for your system!
-override MAKEFLAGS += -rR -j 8
+# Auto-detect CPU cores for parallel compilation (override with: make JOBS=4)
+JOBS ?= $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+override MAKEFLAGS += -rR -j $(JOBS)
 
 override IMAGE_NAME := cottage
 
@@ -46,9 +47,15 @@ all-hdd: $(IMAGE_NAME).hdd
 test: run-uefi
 
 # headless test for CI/automated testing (no GUI window)
+# Usage: make test-headless TIMEOUT=30  (runs for 30 seconds then exits)
+# Without TIMEOUT, runs until crash or manual termination
 .PHONY: test-headless
 test-headless: ovmf $(IMAGE_NAME).iso
+ifdef TIMEOUT
+	timeout $(TIMEOUT) qemu-system-x86_64 $(QEMU_FLAGS) -display none -bios $(OVMF_IMAGE) -cdrom $(IMAGE_NAME).iso -boot d || true
+else
 	qemu-system-x86_64 $(QEMU_FLAGS) -display none -bios $(OVMF_IMAGE) -cdrom $(IMAGE_NAME).iso -boot d
+endif
 
 QEMU_FLAGS := -d cpu_reset -smp cpus=1 -M q35 -m 2G -serial stdio -action panic=none
 
