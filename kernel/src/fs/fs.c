@@ -122,7 +122,7 @@ vfs_node_t* reduce_node(vfs_node_t* node, bool follow_symlinks)
 // Caller must hold vfs_lock for the lifetime of the returned pointer.
 vfs_node_t* node_get_child(vfs_node_t* node, const char* child_name)
 {
-    klog("fs", "node_get_child node=%x (node->name=%s) child_name=%s children=%d",
+    klog_debug("fs", "node_get_child node=%x (node->name=%s) child_name=%s children=%d",
         node,
         node->name,
         child_name,
@@ -135,17 +135,17 @@ vfs_node_t* node_get_child(vfs_node_t* node, const char* child_name)
     {
         // skip entries where the names are different lengths (stops us matching prefixes by accident)
         if(strlen(node->children[i].name) != strlen(child_name)) {
-            klog("fs", "skipping names with different lengths: needle=%s mismatch=%s", child_name, node->children[i].name);
+            klog_debug("fs", "skipping names with different lengths: needle=%s mismatch=%s", child_name, node->children[i].name);
             continue;
         }
         if(strncmp(node->children[i].name, child_name, strlen(child_name)) == 0)
         {
-            klog("fs", "found %s, returning %x", child_name, &node->children[i]);
+            klog_debug("fs", "found %s, returning %x", child_name, &node->children[i]);
             return &node->children[i];
         }
         else
         {
-            klog("fs", "node names did not match node=%s needle=%s", node->children[i].name, child_name);
+            klog_debug("fs", "node names did not match node=%s needle=%s", node->children[i].name, child_name);
         }
     }
     return NULL;

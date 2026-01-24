@@ -47,7 +47,9 @@ syscall_entry_asm:
     pushq %r11              # user RFLAGS
 
     # Step 6: Save caller-saved registers that C might clobber
-    # RDI, RSI, RDX are syscall arguments - save them too
+    # RDI, RSI, RDX, R8, R9 are syscall arguments (already in correct positions)
+    # R10 holds the 4th argument (because syscall clobbers RCX which normally holds arg3)
+    # We need to move R10 to RCX for the C calling convention
     pushq %rdi
     pushq %rsi
     pushq %rdx
@@ -56,13 +58,18 @@ syscall_entry_asm:
     pushq %r10
     pushq %rax              # syscall number (also saved in thread, but we might want return value here)
 
-    # Step 7: Enable interrupts
+    # Step 7: Set up arg3 for C calling convention
+    # syscall uses R10 for 4th arg because syscall clobbers RCX
+    # C calling convention uses RCX for 4th arg
+    movq %r10, %rcx
+
+    # Step 8: Enable interrupts
     # The syscall instruction clears IF in RFLAGS based on FMASK MSR
     # We want interrupts enabled during syscall processing
     sti
 
-    # Step 8: Call the C syscall handler
-    # syscall_handler() will read syscall_num from the thread and dispatch
+    # Step 9: Call the C syscall handler
+    # syscall_handler(rdi, rsi, rdx, rcx, r8, r9) will dispatch to actual syscall
     call syscall_handler
 
     # Step 9: Disable interrupts for the return sequence

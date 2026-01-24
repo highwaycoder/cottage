@@ -133,10 +133,10 @@ process_t* userland_start_program(
             entry_point = (void*)ld_info.entry;
         }
         klog("user", "entry point = %p", entry_point);
-        // fork()
-        if(replace)
+        // fork() - create a new process
+        if(!replace)
         {
-            klog("user", "replace = true");
+            klog("user", "replace = false (fork)");
             // use a sensible default size for new process names
             // maybe this should be pulled out into a macro or global const?
             const int default_name_size = 32;
@@ -194,9 +194,9 @@ process_t* userland_start_program(
 
             return new_process;
         }
-        else // execve()
+        else // execve() - replace current process
         {
-            klog("user", "replace = false (execve)");
+            klog("user", "replace = true (execve)");
             const int default_name_size = 32;
             thread_t* current_thread = get_current_thread();
             process_t* process = current_thread->process;

@@ -1,8 +1,11 @@
 #pragma once
 
 #include <stdarg.h>
+#include <stdint.h>
 
-void syscall_klog(const char* msg, ...);
+// Syscall handler for SYS_KLOG (called from syscall dispatcher)
+uint64_t syscall_klog(uint64_t arg0, uint64_t arg1, uint64_t arg2,
+                      uint64_t arg3, uint64_t arg4, uint64_t arg5);
 void vklog(const char* module, const char* msg, va_list args);
 void klog(const char *module, const char *msg, ...);
 

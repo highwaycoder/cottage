@@ -31,14 +31,25 @@ lock_t klog_lock = {
 
 void klog_putc(char c);
 
-void syscall_klog(const char* fmt, ...)
+// Syscall handler for SYS_KLOG
+// arg0: pointer to message string (const char*)
+// arg1-5: unused (reserved for future use)
+// Note: This is a simple logging syscall - it just prints the string as-is
+// For format strings, the formatting should be done in userspace
+uint64_t syscall_klog(uint64_t arg0, uint64_t arg1, uint64_t arg2,
+                      uint64_t arg3, uint64_t arg4, uint64_t arg5)
 {
-    lock_acquire(&klog_lock);
-    va_list args;
-    va_start(args, fmt);
-    vklog("user", fmt, args);
-    va_end(args);
-    lock_release(&klog_lock);
+    (void)arg1; (void)arg2; (void)arg3; (void)arg4; (void)arg5;
+    const char* msg = (const char*)arg0;
+
+    // Basic validation - make sure pointer looks reasonable
+    // TODO: proper userspace pointer validation
+    if (msg == NULL) {
+        return (uint64_t)-1;
+    }
+
+    klog("user", "%s", msg);
+    return 0;
 }
 
 void vklog(const char* module, const char* fmt, va_list args)

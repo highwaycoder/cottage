@@ -28,11 +28,9 @@ void term_init(uint32_t *framebuffer, size_t width, size_t height,
     ctx->autoflush = false; // disable autoflushing for SMP reasons
 }
 
-void term_write(const char *string, size_t count)
+// Internal write function - caller must hold term_lock
+static void term_write_unlocked(const char *string, size_t count)
 {
-    have_term = false; // stops a PANIC loop
-    // term writes must be locked since async writes will corrupt the framebuffer
-    lock_acquire(&term_lock);
     flanterm_write(ctx, string, count);
     print_serial(string);
     print_serial("\r"); // add a carriage return after each write on serial
@@ -50,6 +48,14 @@ void term_write(const char *string, size_t count)
     {
         ctx->double_buffer_flush(ctx);
     }
+}
+
+void term_write(const char *string, size_t count)
+{
+    have_term = false; // stops a PANIC loop
+    // term writes must be locked since async writes will corrupt the framebuffer
+    lock_acquire(&term_lock);
+    term_write_unlocked(string, count);
     lock_release(&term_lock);
     have_term = true;
 }
@@ -62,19 +68,18 @@ void term_vprintf(const char* fmt, va_list args)
     lock_acquire(&term_lock);
     char buf[256] = {0};
     vsnprintf(buf, 256, fmt, args);
-    term_write(buf, 256);
+    size_t len = strlen(buf);
+    term_write_unlocked(buf, len);
     // ensure newline is printed
-    if(buf[strlen(buf)-1] != '\n')
-        term_putc('\n');
+    if(len > 0 && buf[len-1] != '\n')
+        term_write_unlocked("\n", 1);
     lock_release(&term_lock);
 }
 
 void term_printf(const char *fmt, ...)
 {
-    lock_acquire(&term_lock);
     va_list args;
     va_start(args, fmt);
     term_vprintf(fmt, args);
     va_end(args);
-    lock_release(&term_lock);
 }
