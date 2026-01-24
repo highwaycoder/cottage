@@ -52,15 +52,15 @@ This document tracks specific race conditions identified in the Cottage kernel a
 
 ### TMPFS - `kernel/src/fs/tmpfs.c`
 
-- [ ] **TMPFS-1: Non-atomic refcount initialization** (line 61)
+- [x] **TMPFS-1: Non-atomic refcount initialization** (line 61)
   - Issue: `new_resource->resource.refcount = 1` uses direct write, not atomic store
-  - Fix: Use `atomic_store()` for consistency
+  - Fix: Changed to `atomic_store()` for consistency
 
 ### Slab Allocator - `kernel/src/mem/slaballoc.c`
 
-- [ ] **SLAB-1: `init_slab()` double initialization** (line 25)
+- [-] **SLAB-1: `init_slab()` double initialization** (line 25)
   - Issue: Two threads on exhausted slab could both call `init_slab()`, wasting a page
-  - Fix: Check `first_free` again after acquiring lock, or use atomic CAS
+  - Status: NOT A BUG - slab_lock is already held when checking and calling init_slab
 
 ---
 
@@ -68,13 +68,17 @@ This document tracks specific race conditions identified in the Cottage kernel a
 
 ### PMM - `kernel/src/mem/pmm.c`
 
-- [ ] **PMM-1: Document `pmm_lock` coverage**
+- [x] **PMM-1: Document `pmm_lock` coverage**
   - Issue: `last_used_index` and bitmap ops are protected by `pmm_lock` but not documented
-  - Fix: Add comments/annotations clarifying lock coverage
+  - Fix: Added documentation comments, initialized lock properly in pmm_init
 
 ---
 
 ## Completed Fixes
+
+- [x] **TMPFS-1 & PMM-1: Minor fixes** (Fixed: commit TBD)
+  - TMPFS: Use atomic_store for refcount initialization
+  - PMM: Added documentation and proper lock initialization
 
 - [x] **VMM-1 & VMM-2: Pagemap locking** (Fixed: commit a88f634)
   - Issue: Page table operations not protected, inconsistent lock usage

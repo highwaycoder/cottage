@@ -8,6 +8,7 @@
 #include <mem/mmap.h>
 
 #include <stdlib.h>
+#include <stdatomic.h>
 
 
 filesystem_t* tmpfs_create()
@@ -58,7 +59,7 @@ vfs_node_t* tmpfs_create_node(filesystem_t* _self, vfs_node_t* parent, const cha
     tmpfs_resource_t* new_resource = malloc(sizeof(tmpfs_resource_t));
 
     new_resource->storage = 0;
-    new_resource->resource.refcount = 1;
+    atomic_store(&new_resource->resource.refcount, 1);
 
     if(stat_is_reg(mode))
     {
@@ -100,7 +101,7 @@ vfs_node_t* tmpfs_symlink(filesystem_t* _self, vfs_node_t* parent, const char* d
     tmpfs_resource_t* new_resource = malloc(sizeof(tmpfs_resource_t));
 
     new_resource->storage = 0;
-    new_resource->resource.refcount = 1;
+    atomic_store(&new_resource->resource.refcount, 1);
 
     new_resource->resource.stat.size = strlen(target);
     new_resource->resource.stat.blocks = 0;

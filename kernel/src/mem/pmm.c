@@ -19,11 +19,18 @@ static uint64_t pmm_page_count;
 static void* pmm_bitmap;
 static size_t free_pages;
 
-// mutex for syncing alloc/free calls
+// PMM lock - protects all PMM state during allocation and freeing.
+// Must be held when accessing:
+// - pmm_bitmap (via bitmap_testbit/setbit/resetbit)
+// - last_used_index
+// - free_pages
+// Acquired by pmm_alloc() and pmm_free() for the duration of their operations.
 static lock_t pmm_lock;
 
 void pmm_init(struct limine_memmap_response* memmap)
 {
+    pmm_lock = (lock_t)LOCK_INITIALIZER("pmm_lock");
+
     uint64_t first_free_page = UINT64_MAX;
     uint64_t highest_address = 0;
     struct limine_memmap_entry** entries = memmap->entries;
