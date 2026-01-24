@@ -114,32 +114,32 @@ void gdt_init()
         .base_high_b = 0,
     };
 
-    // ring 3 64 bit code
+    // ring 3 64 bit data (entry 7, selector 0x3b with RPL=3)
     gdt_entries[7] = (gdt_entry_t){
         .limit = 0x0,
         .base_low_w = 0,
         .base_mid_b = 0,
-        .access = 
-            GDT_ACCESS_PRESENT 
-            | GDT_ACCESS_RING3 
-            | GDT_ACCESS_EXECUTABLE
-            | GDT_ACCESS_DESCRIPTOR_TYPE_CODE_OR_DATA 
+        .access =
+            GDT_ACCESS_PRESENT
+            | GDT_ACCESS_RING3
+            | GDT_ACCESS_DESCRIPTOR_TYPE_CODE_OR_DATA
             | GDT_ACCESS_RW_ENABLE,
-        .granularity = GDT_GRANULARITY_64BIT_CODE,
+        .granularity = 0,
         .base_high_b = 0,
     };
 
-    // ring 3 64 bit data
+    // ring 3 64 bit code (entry 8, selector 0x43 with RPL=3)
     gdt_entries[8] = (gdt_entry_t){
         .limit = 0x0,
         .base_low_w = 0,
         .base_mid_b = 0,
-        .access = 
-            GDT_ACCESS_PRESENT 
-            | GDT_ACCESS_RING3 
-            | GDT_ACCESS_DESCRIPTOR_TYPE_CODE_OR_DATA 
+        .access =
+            GDT_ACCESS_PRESENT
+            | GDT_ACCESS_RING3
+            | GDT_ACCESS_EXECUTABLE
+            | GDT_ACCESS_DESCRIPTOR_TYPE_CODE_OR_DATA
             | GDT_ACCESS_RW_ENABLE,
-        .granularity = 0,
+        .granularity = GDT_GRANULARITY_64BIT_CODE,
         .base_high_b = 0,
     };
 

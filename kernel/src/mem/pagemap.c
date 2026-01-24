@@ -87,9 +87,9 @@ void switch_pagemap(pagemap_t* pagemap)
 {
     void* top = pagemap->top_level;
     asm volatile (
-        "mov %%cr3, %0"
-        : /* no output */ 
-        : "r" (top) 
+        "mov %0, %%cr3"
+        : /* no output */
+        : "r" (top)
         : "memory"
     );
 }

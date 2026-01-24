@@ -305,6 +305,13 @@ bool fs_mount(vfs_node_t* parent, const char* source, const char* target, hpr_fs
     char* basename;
     path2node(parent, target, &parent_of_tgt_node, &target_node, &basename);
 
+    // path2node returns NULL basename for root path "/", use empty string instead
+    if (basename == NULL)
+    {
+        basename = malloc(1);
+        basename[0] = '\0';
+    }
+
     bool mounting_root = target_node == vfs_root;
 
     if (target_node == NULL || (!mounting_root && !stat_is_dir(target_node->resource->stat.mode)))

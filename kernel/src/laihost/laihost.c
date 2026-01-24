@@ -141,7 +141,8 @@ void* laihost_map(size_t address, size_t count)
         for(uint64_t j = 0; j < count; j+=PAGE_SIZE)
         {
             uint64_t* pte = virt2pte(&g_kernel_pagemap, i + j + HIGHER_HALF, false);
-            if((*pte & PTE_FLAG_PRESENT))
+            // If pte is NULL, the page table doesn't exist, so the page isn't present
+            if(pte != NULL && (*pte & PTE_FLAG_PRESENT))
             {
                 goto _loop_end;
             }
@@ -151,12 +152,12 @@ void* laihost_map(size_t address, size_t count)
         _loop_end:
         continue;
     }
-    
+
     for(uint64_t i = 0; i < count; i+=PAGE_SIZE)
     {
-        map_page(&g_kernel_pagemap, 
-                virt_addr + i + HIGHER_HALF, 
-                address + i, 
+        map_page(&g_kernel_pagemap,
+                virt_addr + i,   // virt_addr already includes HIGHER_HALF
+                address + i,
                 PTE_FLAG_PRESENT | PTE_FLAG_WRITABLE);
     }
 

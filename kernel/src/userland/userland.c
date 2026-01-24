@@ -213,7 +213,11 @@ process_t* userland_start_program(
             current_thread->process = kernel_process;
             klog("user", "pagemap switched");
 
-            delete_pagemap(old_pagemap);
+            // Don't delete the kernel pagemap - it's a global, not heap-allocated
+            if (old_pagemap != &g_kernel_pagemap)
+            {
+                delete_pagemap(old_pagemap);
+            }
             process->thread_stack_top = PROC_DEFAULT_THREAD_STACK_TOP;
             process->mmap_anon_non_fixed_base = PROC_DEFAULT_MMAP_ANON_NON_FIXED_BASE;
 

@@ -134,16 +134,20 @@ void scheduler_isr(__attribute__((unused)) uint32_t num, __attribute__((unused))
     current_thread = scheduler_running_queue[new_index];
     cpu->last_run_queue_index = new_index;
 
-    set_gs_base((uint64_t)current_thread);
-    klog("sched", "set current thread to %p", current_thread);
     if (current_thread->cpu_state.cs == USER_CODE_SEGMENT)
     {
-        set_kernel_gs_base(current_thread->gs_base);
+        // For user threads: GS_BASE = user's value, KERNEL_GS_BASE = thread pointer
+        // After swapgs on interrupt, kernel will have GS_BASE = thread pointer
+        set_gs_base(current_thread->gs_base);
+        set_kernel_gs_base((uint64_t)current_thread);
     }
     else
     {
+        // For kernel threads: both point to thread
+        set_gs_base((uint64_t)current_thread);
         set_kernel_gs_base((uint64_t)current_thread);
     }
+    klog("sched", "set current thread to %p", current_thread);
     set_fs_base(current_thread->fs_base);
 
     cpu->tss.ist3 = current_thread->pf_stack;
@@ -190,14 +194,14 @@ void scheduler_isr(__attribute__((unused)) uint32_t num, __attribute__((unused))
         "popq %%r14\n"
         "popq %%r15\n"
         "addq $8, %%rsp\n"
-        
-        "cmpq $0x08, 8(%%rsp)\n"
+
+        "cmpq $%c1, 8(%%rsp)\n"
         "je 1f\n"
         "swapgs\n"
         "1:\n"
         "iretq\n"
         :
-        : "rm" (new_cpu_state)
+        : "rm" (new_cpu_state), "i" (KERNEL_CODE_SEGMENT)
         : "memory"
         );
 

@@ -82,6 +82,11 @@ void vmm_init(uint64_t kernel_base_physical, uint64_t kernel_base_virtual, struc
             panic("vmm init failed: unable to map kernel page");
     }
     
+    // Map first page only for higher-half (needed for ACPI/BIOS data)
+    // We don't identity-map it to still catch NULL pointer dereferences
+    if(!map_page(&g_kernel_pagemap, HIGHER_HALF, 0, 0x03))
+        panic("vmm init failed: unable to map page 0");
+
     for(uint64_t i = 0x1000; i < FOUR_GIGS; i += PAGE_SIZE)
     {
         if(!map_page(&g_kernel_pagemap, i, i, 0x03))
