@@ -551,7 +551,7 @@ thread_t* new_user_thread(
         }
 
 		// re-align stack pointer to 16 bytes
-        if ((argc + envc + 1 & 1) != 0)
+        if (((argc + envc + 1) & 1) != 0)
         {
             stack--;
         }

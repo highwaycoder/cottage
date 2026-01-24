@@ -48,12 +48,9 @@ $(eval $(call DEFAULT_VAR,LDFLAGS,$(DEFAULT_LDFLAGS)))
 override CFLAGS += \
     -Wall \
     -Wextra \
-		-nostdlib \
-		-nostartfiles \
-		-nodefaultlibs \
-		-static \
+    -ffreestanding \
     -std=c11 \
-		-I../kernel/include/
+    -I../kernel/include/
     #-march=x86-64
 
 # Internal C preprocessor flags that should not be changed by the user.

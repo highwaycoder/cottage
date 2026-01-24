@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stddef.h>
 #include <fs/fs.h>
 #include <lock/lock.h>
 #include <scheduler/event.h>

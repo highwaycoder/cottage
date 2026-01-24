@@ -63,6 +63,7 @@ static inline const char* fs_name(hpr_fsid_t fsid)
         case FS_DEVTMPFS: return "devtmpfs";
         case FS_EXT2: return "ext2";
     }
+    return "unknown";
 }
 
 // todo: extern these?

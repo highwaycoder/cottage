@@ -50,6 +50,9 @@ override CFLAGS += \
     -Wall \
     -Wextra \
     -Wreturn-type \
+    -Wno-unknown-pragmas \
+    -Wno-implicit-fallthrough \
+    -Wno-unused-parameter \
     -std=gnu11 \
     -ffreestanding \
     -fno-stack-protector \

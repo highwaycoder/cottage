@@ -1,5 +1,6 @@
 #include <interrupt/isr.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <interrupt/idt.h>
 #include <interrupt/apic.h>
 #include <gdt/gdt.h>

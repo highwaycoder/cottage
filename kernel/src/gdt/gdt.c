@@ -153,6 +153,10 @@ void gdt_reload()
         .address = &gdt_entries
     };
 
+    uint64_t kernel_code = KERNEL_CODE_SEGMENT;
+    uint64_t kernel_data = KERNEL_DATA_SEGMENT;
+    uint64_t user_data = USER_DATA_SEGMENT;
+
     asm volatile (
         "lgdt %0\n"
         "pushq %%rax\n"
@@ -168,9 +172,9 @@ void gdt_reload()
         "mov %3, %%gs\n"
         : :
         "m" (gdt_pointer),
-        "rm" (KERNEL_CODE_SEGMENT),
-        "rm" (KERNEL_DATA_SEGMENT),
-        "rm" (USER_DATA_SEGMENT)
+        "r" (kernel_code),
+        "r" (kernel_data),
+        "r" (user_data)
         : "memory"
     );
 }

@@ -302,13 +302,13 @@ void kmain_thread(void* arg)
     console_init();
     klog("main", "Console initialized");
 
-    process_t* init_process = userland_start_program(false, 
+    process_t* init_process = userland_start_program(false,
         vfs_root,
         "/sbin/init",
         1,
         (const char*[]){"/sbin/init"},
         0,
-        (const char*[]){},
+        NULL,
         "/dev/console",
         "/dev/console",
         "/dev/console",
