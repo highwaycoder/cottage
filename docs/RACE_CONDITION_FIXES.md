@@ -76,7 +76,7 @@ This document tracks specific race conditions identified in the Cottage kernel a
 
 ## Completed Fixes
 
-- [x] **VFS-1 through VFS-4: VFS race conditions** (Fixed: commit TBD)
+- [x] **VFS-1 through VFS-4: VFS race conditions** (Fixed: commit cab9a96)
   - Issue: VFS tree operations not protected by vfs_lock; num_filesystems not atomic
   - Fix: Added vfs_lock to fs_get_node(), fs_mount(), fs_symlink(); made num_filesystems atomic;
     documented internal functions require caller to hold lock
