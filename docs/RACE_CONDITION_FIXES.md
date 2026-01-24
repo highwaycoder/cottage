@@ -76,7 +76,7 @@ This document tracks specific race conditions identified in the Cottage kernel a
 
 ## Completed Fixes
 
-- [x] **VMM-1 & VMM-2: Pagemap locking** (Fixed: commit TBD)
+- [x] **VMM-1 & VMM-2: Pagemap locking** (Fixed: commit a88f634)
   - Issue: Page table operations not protected, inconsistent lock usage
   - Fix: Added REQUIRES annotations, initialized pagemap locks properly, fixed mmap_map_range,
     fixed use-after-free in delete_pagemap, added NO_THREAD_SAFETY_ANALYSIS for init code
