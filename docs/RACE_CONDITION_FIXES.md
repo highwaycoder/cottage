@@ -14,21 +14,21 @@ This document tracks specific race conditions identified in the Cottage kernel a
 
 ### VFS (Virtual File System) - `kernel/src/fs/fs.c`
 
-- [ ] **VFS-1: `vfs_add_child()` race** (lines 47-54)
+- [x] **VFS-1: `vfs_add_child()` race** (lines 47-54)
   - Issue: Multiple threads can corrupt `children` array - racing writes + `realloc()` can cause use-after-free
-  - Fix: Acquire `vfs_lock` or add per-node lock
+  - Fix: All public callers now hold `vfs_lock`; documented as internal function
 
-- [ ] **VFS-2: `node_get_child()` use-after-free** (lines 100-129)
+- [x] **VFS-2: `node_get_child()` use-after-free** (lines 100-129)
   - Issue: Returns pointer into array that can be `realloc()`'d by concurrent `vfs_add_child()`
-  - Fix: Protect with lock, or copy data instead of returning pointer
+  - Fix: All callers now hold `vfs_lock`; documented pointer lifetime requirements
 
-- [ ] **VFS-3: `path2node()` unprotected** (lines 132-256)
+- [x] **VFS-3: `path2node()` unprotected** (lines 132-256)
   - Issue: Called without `vfs_lock` from most callers (`fs_get_node`, `fs_mount`, `fs_symlink`, etc.)
-  - Fix: Ensure all callers hold `vfs_lock`, or acquire it internally
+  - Fix: Added `vfs_lock` to `fs_get_node()`, `fs_mount()`, `fs_symlink()`; `fs_create()` already had it
 
-- [ ] **VFS-4: `num_filesystems` unprotected** (line 17)
+- [x] **VFS-4: `num_filesystems` unprotected** (line 17)
   - Issue: Global counter modified without synchronization
-  - Fix: Make `_Atomic` or protect with lock
+  - Fix: Made `_Atomic size_t` and use `atomic_load()`/`atomic_store()`
 
 ### VMM/Pagemap - `kernel/src/mem/vmm.c`, `pagemap.c`
 
@@ -75,6 +75,11 @@ This document tracks specific race conditions identified in the Cottage kernel a
 ---
 
 ## Completed Fixes
+
+- [x] **VFS-1 through VFS-4: VFS race conditions** (Fixed: commit TBD)
+  - Issue: VFS tree operations not protected by vfs_lock; num_filesystems not atomic
+  - Fix: Added vfs_lock to fs_get_node(), fs_mount(), fs_symlink(); made num_filesystems atomic;
+    documented internal functions require caller to hold lock
 
 - [x] **SCHED-1: `is_in_queue` non-atomic** (Fixed: commit 46adaef)
   - Issue: `bool is_in_queue` accessed without synchronization from multiple CPUs

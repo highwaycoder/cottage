@@ -10,11 +10,19 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <stdatomic.h>
 
+// Global VFS lock - protects the VFS tree structure
+// Must be held when:
+// - Modifying any vfs_node_t's children array or children_count
+// - Traversing the VFS tree (path2node, node_get_child, reduce_node)
+// - Modifying mountpoints or redirects
 lock_t vfs_lock;
 vfs_node_t* vfs_root;
 filesystem_t** filesystems;
-size_t num_filesystems;
+// Atomic because it's read in fs_mount() while potentially being
+// modified during filesystem registration
+_Atomic size_t num_filesystems;
 
 vfs_node_t* vfs_create_node(filesystem_t* filesystem, vfs_node_t* parent, const char* name, bool dir)
 {
@@ -44,6 +52,11 @@ vfs_node_t* vfs_create_node(filesystem_t* filesystem, vfs_node_t* parent, const 
     return node;
 }
 
+// INTERNAL: Caller must hold vfs_lock
+// Adds a child node to a parent's children array.
+// WARNING: This function calls realloc() which may move the children array,
+// invalidating any pointers into it. Callers must not hold such pointers
+// across calls to this function.
 void vfs_add_child(vfs_node_t* parent, vfs_node_t* new_child)
 {
     // the last node is already pre-allocated for us, so just copy the new child in
@@ -55,18 +68,23 @@ void vfs_add_child(vfs_node_t* parent, vfs_node_t* new_child)
 
 void fs_init()
 {
+   // Initialize the global VFS lock
+   vfs_lock = (lock_t)LOCK_INITIALIZER("vfs_lock");
+
    vfs_root = vfs_create_node(NULL, NULL, "", false);
 
-   filesystems = malloc(sizeof(filesystem_t*) * KERNEL_FILESYSTEM_COUNT); 
+   filesystems = malloc(sizeof(filesystem_t*) * KERNEL_FILESYSTEM_COUNT);
    filesystems[FS_TMPFS] = tmpfs_create();
 
    filesystems[FS_DEVTMPFS] = devtmpfs_create();
 
-   num_filesystems += 2; 
-   // todo: finish implementing ext2 support 
+   atomic_store(&num_filesystems, 2);
+   // todo: finish implementing ext2 support
    //filesystems[FS_EXT2] = ext2_init();
 }
 
+// INTERNAL: Caller must hold vfs_lock
+// Follows redirects and mountpoints to get the "real" node.
 vfs_node_t* reduce_node(vfs_node_t* node, bool follow_symlinks)
 {
     if (node->redir != 0)
@@ -94,9 +112,14 @@ vfs_node_t* reduce_node(vfs_node_t* node, bool follow_symlinks)
     return node;
 }
 
-// expects child_name to be zero-terminated string containing only the 
+// INTERNAL: Caller must hold vfs_lock
+// Expects child_name to be zero-terminated string containing only the
 // specific child we are looking for.  Do not pass in a subpath, as we will
 // not split it! (this behaviour may change in future versions)
+//
+// WARNING: Returns a pointer into node->children array. This pointer becomes
+// invalid if vfs_add_child() is called on the same parent (due to realloc).
+// Caller must hold vfs_lock for the lifetime of the returned pointer.
 vfs_node_t* node_get_child(vfs_node_t* node, const char* child_name)
 {
     klog("fs", "node_get_child node=%x (node->name=%s) child_name=%s children=%d",
@@ -128,7 +151,13 @@ vfs_node_t* node_get_child(vfs_node_t* node, const char* child_name)
     return NULL;
 }
 
+// INTERNAL: Caller must hold vfs_lock
+// Resolves a path string to VFS nodes.
 // todo: support passing in NULL as the last three parameters if we aren't interested in the return value
+//
+// WARNING: Returns pointers into the VFS tree. These pointers become invalid
+// if the tree structure changes. Caller must hold vfs_lock for the lifetime
+// of the returned pointers.
 void path2node(vfs_node_t* parent, const char* path, vfs_node_t** parent_out, vfs_node_t** node_out, char** basename_out)
 {
     if(strlen(path) == 0)
@@ -257,6 +286,8 @@ void path2node(vfs_node_t* parent, const char* path, vfs_node_t** parent_out, vf
 
 vfs_node_t* fs_symlink(vfs_node_t* parent, const char* dest, const char* target)
 {
+    lock_acquire(&vfs_lock);
+
     vfs_node_t *parent_of_tgt;
     vfs_node_t *target_node;
     char* basename;
@@ -267,6 +298,7 @@ vfs_node_t* fs_symlink(vfs_node_t* parent, const char* dest, const char* target)
         set_errno(EEXIST);
         // if we allocated a basename in the path2node function, we will need to free it here
         free(basename);
+        lock_release(&vfs_lock);
         return NULL;
     }
 
@@ -275,16 +307,20 @@ vfs_node_t* fs_symlink(vfs_node_t* parent, const char* dest, const char* target)
 
     vfs_add_child(parent_of_tgt, target_node);
 
+    lock_release(&vfs_lock);
     return target_node;
 }
 
 bool fs_mount(vfs_node_t* parent, const char* source, const char* target, hpr_fsid_t fs_identifier)
 {
-    if(fs_identifier > num_filesystems-1) 
+    // Check filesystem identifier before acquiring lock (read-only check)
+    if(fs_identifier > atomic_load(&num_filesystems) - 1)
     {
         klog("fs", "Mount failed: invalid filesystem identifier %d", fs_identifier);
         return false;
     }
+
+    lock_acquire(&vfs_lock);
 
     vfs_node_t* source_node = NULL;
     if (strlen(source) != 0)
@@ -296,6 +332,7 @@ bool fs_mount(vfs_node_t* parent, const char* source, const char* target, hpr_fs
         if(source_node == NULL || stat_is_dir(source_node->resource->stat.mode))
         {
             klog("fs", "Mount failed: invalid source, or source is directory");
+            lock_release(&vfs_lock);
             return false;
         }
     }
@@ -317,6 +354,8 @@ bool fs_mount(vfs_node_t* parent, const char* source, const char* target, hpr_fs
     if (target_node == NULL || (!mounting_root && !stat_is_dir(target_node->resource->stat.mode)))
     {
         klog("fs", "Mount failed: target is not directory");
+        free(basename);
+        lock_release(&vfs_lock);
         return false;
     }
 
@@ -330,11 +369,13 @@ bool fs_mount(vfs_node_t* parent, const char* source, const char* target, hpr_fs
 
     dir_create_dotentries(mount_node, parent_of_tgt_node);
 
+    lock_release(&vfs_lock);
+
     if(strlen(source) > 0)
     {
         klog("vfs", "Mounted %s to %s with filesystem %s", source, target, fs_name(fs_identifier));
     }
-    else 
+    else
     {
         klog("vfs", "Mounted %s to %s", fs_name(fs_identifier), target);
     }
@@ -383,7 +424,8 @@ vfs_node_t* fs_create(vfs_node_t* parent, const char* name, int mode)
     return ret;
 }
 
-// create . and .. aliases to "current node" and "parent node", respectively
+// INTERNAL: Caller must hold vfs_lock
+// Create . and .. aliases to "current node" and "parent node", respectively
 void dir_create_dotentries(vfs_node_t* node, vfs_node_t* parent)
 {
     vfs_node_t* dot = vfs_create_node(node->filesystem, node, ".", false);
@@ -396,16 +438,27 @@ void dir_create_dotentries(vfs_node_t* node, vfs_node_t* parent)
 
 vfs_node_t* fs_get_node(vfs_node_t* parent, const char* path, bool follow_symlinks)
 {
+    lock_acquire(&vfs_lock);
+
     klog_debug("fs", "calling path2node with args: parent=%x path=%s, parent->name=%s", parent, path, parent->name);
     vfs_node_t* current, *next_parent;
     char* basename;
     path2node(parent, path, &next_parent, &current, &basename);
     klog_debug("fs", "path2node returned current=%x parent=%x basename=%s", current, parent, basename);
     free(basename); // not used
-    if(current == NULL) return NULL;
+
+    if(current == NULL)
+    {
+        lock_release(&vfs_lock);
+        return NULL;
+    }
+
+    vfs_node_t* result = current;
     if (follow_symlinks)
     {
-        return reduce_node(current, true);
+        result = reduce_node(current, true);
     }
-    return current;
+
+    lock_release(&vfs_lock);
+    return result;
 }
