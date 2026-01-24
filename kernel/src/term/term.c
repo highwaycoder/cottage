@@ -17,7 +17,7 @@ extern bool have_term;
 
 static struct flanterm_context *ctx;
 
-static lock_t term_lock;
+static lock_t term_lock = LOCK_INITIALIZER("term_lock");
 
 void term_putc(const char c);
 

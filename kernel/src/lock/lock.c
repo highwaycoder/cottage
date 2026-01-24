@@ -23,10 +23,19 @@
 // but we need cpu_get_current() for debug instrumentation
 #ifdef COTTAGE_DEBUG
 #include <cpu/smp.h>
+#include <stdbool.h>
+
+// Declared in smp.c - indicates GS segment is set up and safe to read
+extern bool have_smp;
 
 // Get current CPU number safely (returns -1 if interrupts enabled or too early)
 static uint64_t get_current_cpu_safe(void)
 {
+    // GS segment not set up yet - can't read CPU number
+    if (!have_smp) {
+        return (uint64_t)-1;
+    }
+
     // Check if interrupts are enabled - if so, we can't safely read GS
     uint64_t flags;
     asm volatile("pushfq; popq %0" : "=r"(flags));
@@ -67,22 +76,30 @@ void lock_acquire(lock_t* lock)
     // Check for recursive locking (same CPU trying to acquire twice)
     // This would be an instant deadlock since we'd spin waiting for ourselves
     if (lock->owner_cpu == my_cpu && my_cpu != (uint64_t)-1) {
-        klog("lock", "RECURSIVE LOCK DETECTED!");
-        klog("lock", "  Lock address: %p", (void*)lock);
+        klog_unlocked("lock", "RECURSIVE LOCK DETECTED!");
+        klog_unlocked("lock", "  Lock address: %p", (void*)lock);
         if (lock->name) {
-            klog("lock", "  Lock name: %s", lock->name);
+            klog_unlocked("lock", "  Lock name: %s", lock->name);
         }
-        klog("lock", "  CPU %lu already holds this lock", my_cpu);
-        klog("lock", "  Original acquire: %p", (void*)lock->acquire_caller);
-        klog("lock", "  Current acquire attempt: %p", (void*)caller);
+        klog_unlocked("lock", "  CPU %lu already holds this lock", my_cpu);
+        klog_unlocked("lock", "  Original acquire: %p", (void*)lock->acquire_caller);
+        klog_unlocked("lock", "  Current acquire attempt: %p", (void*)caller);
         panic("Recursive lock acquisition (deadlock)");
     }
 #endif
 
     // Spin until we acquire the lock
-    // The magic number 50M gives us a long time to wait, but not forever.
-    // If we hit this limit, something is seriously wrong (deadlock, bug, etc.)
-    for (uint64_t i = 0; i < 50000000; i++)
+    // We use tiered warnings to help identify contention before full deadlock:
+    // - 1M iterations: first warning (possible contention)
+    // - 5M iterations: second warning (likely problem)
+    // - 10M iterations: panic (definite deadlock)
+    //
+    // Under QEMU emulation these iteration counts may feel different than bare metal.
+    #define LOCK_WARN_THRESHOLD_1   1000000
+    #define LOCK_WARN_THRESHOLD_2   5000000
+    #define LOCK_DEADLOCK_THRESHOLD 10000000
+
+    for (uint64_t i = 0; i < LOCK_DEADLOCK_THRESHOLD; i++)
     {
         if (lock_test_and_acquire(lock))
         {
@@ -99,19 +116,42 @@ void lock_acquire(lock_t* lock)
         // This improves performance on hyperthreaded CPUs by yielding
         // resources to the sibling thread
         asm volatile("pause" ::: "memory");
+
+        // Periodic warnings to help identify contention before full deadlock
+        if (i == LOCK_WARN_THRESHOLD_1) {
+            klog_unlocked("lock", "CONTENTION WARNING (1M spins) - lock %p", (void*)lock);
+#ifdef COTTAGE_DEBUG
+            if (lock->name) {
+                klog_unlocked("lock", "  Lock name: %s", lock->name);
+            }
+            klog_unlocked("lock", "  Held by CPU: %lu", lock->owner_cpu);
+#endif
+            klog_unlocked("lock", "  Last acquired from: %p", (void*)lock->acquire_caller);
+            klog_unlocked("lock", "  Waiting caller: %p", (void*)caller);
+        } else if (i == LOCK_WARN_THRESHOLD_2) {
+            klog_unlocked("lock", "CONTENTION WARNING (5M spins) - lock %p", (void*)lock);
+#ifdef COTTAGE_DEBUG
+            if (lock->name) {
+                klog_unlocked("lock", "  Lock name: %s", lock->name);
+            }
+            klog_unlocked("lock", "  Held by CPU: %lu", lock->owner_cpu);
+#endif
+            klog_unlocked("lock", "  Last acquired from: %p", (void*)lock->acquire_caller);
+            klog_unlocked("lock", "  Waiting caller: %p", (void*)caller);
+        }
     }
 
     // If we get here, we've spun for way too long - likely deadlock
-    klog("lock", "DEADLOCK DETECTED - lock acquisition timeout!");
-    klog("lock", "  Lock address: %p", (void*)lock);
+    klog_unlocked("lock", "DEADLOCK DETECTED - lock acquisition timeout!");
+    klog_unlocked("lock", "  Lock address: %p", (void*)lock);
 #ifdef COTTAGE_DEBUG
     if (lock->name) {
-        klog("lock", "  Lock name: %s", lock->name);
+        klog_unlocked("lock", "  Lock name: %s", lock->name);
     }
-    klog("lock", "  Held by CPU: %lu", lock->owner_cpu);
+    klog_unlocked("lock", "  Held by CPU: %lu", lock->owner_cpu);
 #endif
-    klog("lock", "  Last acquired from: %p", (void*)lock->acquire_caller);
-    klog("lock", "  Current acquire attempt from: %p", (void*)caller);
+    klog_unlocked("lock", "  Last acquired from: %p", (void*)lock->acquire_caller);
+    klog_unlocked("lock", "  Current acquire attempt from: %p", (void*)caller);
 
     panic("Deadlock detected - lock acquisition timeout");
 }
@@ -135,26 +175,26 @@ void lock_release(lock_t* lock)
 
     // Check if lock is actually held
     if (!atomic_load(&lock->is_locked)) {
-        klog("lock", "RELEASING UNHELD LOCK!");
-        klog("lock", "  Lock address: %p", (void*)lock);
+        klog_unlocked("lock", "RELEASING UNHELD LOCK!");
+        klog_unlocked("lock", "  Lock address: %p", (void*)lock);
         if (lock->name) {
-            klog("lock", "  Lock name: %s", lock->name);
+            klog_unlocked("lock", "  Lock name: %s", lock->name);
         }
-        klog("lock", "  Release caller: %p", (void*)__builtin_return_address(0));
+        klog_unlocked("lock", "  Release caller: %p", (void*)__builtin_return_address(0));
         panic("Attempted to release lock that isn't held");
     }
 
     // Check if we own this lock (only if we can determine our CPU)
     if (my_cpu != (uint64_t)-1 && lock->owner_cpu != my_cpu) {
-        klog("lock", "RELEASING LOCK HELD BY DIFFERENT CPU!");
-        klog("lock", "  Lock address: %p", (void*)lock);
+        klog_unlocked("lock", "RELEASING LOCK HELD BY DIFFERENT CPU!");
+        klog_unlocked("lock", "  Lock address: %p", (void*)lock);
         if (lock->name) {
-            klog("lock", "  Lock name: %s", lock->name);
+            klog_unlocked("lock", "  Lock name: %s", lock->name);
         }
-        klog("lock", "  Lock owned by CPU: %lu", lock->owner_cpu);
-        klog("lock", "  Release attempted by CPU: %lu", my_cpu);
-        klog("lock", "  Original acquire: %p", (void*)lock->acquire_caller);
-        klog("lock", "  Release caller: %p", (void*)__builtin_return_address(0));
+        klog_unlocked("lock", "  Lock owned by CPU: %lu", lock->owner_cpu);
+        klog_unlocked("lock", "  Release attempted by CPU: %lu", my_cpu);
+        klog_unlocked("lock", "  Original acquire: %p", (void*)lock->acquire_caller);
+        klog_unlocked("lock", "  Release caller: %p", (void*)__builtin_return_address(0));
         panic("Attempted to release lock held by different CPU");
     }
 
@@ -252,13 +292,13 @@ void lock_assert_held(lock_t* lock)
 {
 #ifdef COTTAGE_DEBUG
     if (!lock_is_held_by_me(lock)) {
-        klog("lock", "LOCK ASSERTION FAILED!");
-        klog("lock", "  Lock address: %p", (void*)lock);
+        klog_unlocked("lock", "LOCK ASSERTION FAILED!");
+        klog_unlocked("lock", "  Lock address: %p", (void*)lock);
         if (lock->name) {
-            klog("lock", "  Lock name: %s", lock->name);
+            klog_unlocked("lock", "  Lock name: %s", lock->name);
         }
-        klog("lock", "  Expected to be held by current CPU");
-        klog("lock", "  Assertion caller: %p", (void*)__builtin_return_address(0));
+        klog_unlocked("lock", "  Expected to be held by current CPU");
+        klog_unlocked("lock", "  Assertion caller: %p", (void*)__builtin_return_address(0));
         panic("Lock assertion failed - lock not held");
     }
 #else

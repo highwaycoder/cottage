@@ -1,6 +1,7 @@
 #pragma once
 
 #include <acpispec/tables.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <scheduler/event.h>
 
@@ -54,3 +55,7 @@ void timer_handler();
 
 extern timespec_t monotonic_clock;
 extern timespec_t realtime_clock;
+extern volatile bool have_hpet;
+
+// Get milliseconds since boot using HPET (interrupt-independent, accurate even when interrupts disabled)
+uint64_t get_time_since_boot_ms(void);

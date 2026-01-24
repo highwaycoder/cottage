@@ -24,7 +24,7 @@
 #define PRINTF_LENGTH_LONG 3
 #define PRINTF_LENGTH_LONG_LONG 4
 
-static lock_t printf_lock;
+static lock_t printf_lock = LOCK_INITIALIZER("printf_lock");
 
 // forward declaration of "local" functions
 int vsnprintf_unsigned(char **str, size_t n, unsigned long long number,

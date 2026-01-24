@@ -24,7 +24,7 @@ extern bool have_malloc;
 extern bool have_term;
 extern bool have_smp;
 
-lock_t panic_lock;
+lock_t panic_lock = LOCK_INITIALIZER("panic_lock");
 
 void dump_task_state_segment(const task_state_segment_t *tss) {
     term_printf("  TSS Dump:\n");

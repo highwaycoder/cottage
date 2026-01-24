@@ -31,7 +31,7 @@ static idtd_t idtd = {
 };
 
 
-static lock_t idt_lock;
+static lock_t idt_lock = LOCK_INITIALIZER("idt_lock");
 
 
 uint8_t idt_allocate_vector()

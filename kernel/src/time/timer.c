@@ -13,9 +13,16 @@ extern pagemap_t g_kernel_pagemap;
 static hpet_t* hpet = 0;
 timespec_t monotonic_clock;
 timespec_t realtime_clock;
-lock_t timers_lock;
+lock_t timers_lock = LOCK_INITIALIZER("timers_lock");
 hpr_timer_t* armed_timers;
 size_t armed_timers_count;
+
+// Flag indicating HPET is initialized and can be used for timestamps
+volatile bool have_hpet = false;
+// HPET counter value at boot - subtract from current to get elapsed ticks
+static uint64_t hpet_boot_value = 0;
+// Cached ticks per millisecond for faster conversion
+static uint64_t hpet_ticks_per_ms = 0;
 
 // Runs during single-threaded boot, no lock needed
 NO_THREAD_SAFETY_ANALYSIS
@@ -35,6 +42,19 @@ void hpet_init()
 
     // start the timer running, and enable timer interrupts
     hpet->general_config = 1;
+
+    // Record boot time for timestamps - HPET runs independently of interrupts
+    hpet_boot_value = hpet->counter_value;
+    hpet_ticks_per_ms = get_ticks_per_second() / 1000;
+    have_hpet = true;
+}
+
+// Get milliseconds since boot using HPET (interrupt-independent)
+uint64_t get_time_since_boot_ms(void)
+{
+    if (!have_hpet) return 0;
+    uint64_t elapsed_ticks = hpet->counter_value - hpet_boot_value;
+    return elapsed_ticks / hpet_ticks_per_ms;
 }
 
 void timer_init(int64_t epoch)

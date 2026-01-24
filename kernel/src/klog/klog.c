@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <term/term.h>
+#include <time/timer.h>
 
 // 128K ring buffer - tune as needed
 #define KLOG_BUFSIZE KiB(128)
@@ -25,9 +26,7 @@ static size_t log_end = 0;
 extern bool have_term;
 extern bool have_malloc;
 
-lock_t klog_lock = {
-    .is_locked = false
-};
+lock_t klog_lock = LOCK_INITIALIZER("klog_lock");
 
 void klog_putc(char c);
 
@@ -55,6 +54,34 @@ uint64_t syscall_klog(uint64_t arg0, uint64_t arg1, uint64_t arg2,
 void vklog(const char* module, const char* fmt, va_list args)
 {
     size_t log_end_start = log_end;
+
+    // Print timestamp: [seconds.milliseconds] or [early] if HPET not ready
+    // Uses HPET counter directly - accurate even when interrupts are disabled
+    if (have_hpet) {
+        uint64_t total_ms = get_time_since_boot_ms();
+        uint64_t secs = total_ms / 1000;
+        uint64_t ms = total_ms % 1000;
+        char ts_buf[24];
+        // Manual zero-padding for milliseconds since kernel printf doesn't support %03
+        int ts_len;
+        if (ms < 10) {
+            ts_len = snprintf(ts_buf, sizeof(ts_buf), "[%lu.00%lu] ", secs, ms);
+        } else if (ms < 100) {
+            ts_len = snprintf(ts_buf, sizeof(ts_buf), "[%lu.0%lu] ", secs, ms);
+        } else {
+            ts_len = snprintf(ts_buf, sizeof(ts_buf), "[%lu.%lu] ", secs, ms);
+        }
+        for (int i = 0; i < ts_len; i++) {
+            klog_putc(ts_buf[i]);
+        }
+    } else {
+        // HPET not initialized yet - mark as early boot
+        const char* early = "[early] ";
+        while (*early) {
+            klog_putc(*early++);
+        }
+    }
+
     klog_putc('[');
     while (*module)
     {
@@ -127,6 +154,24 @@ void klog(const char *module, const char *fmt, ...)
     vklog(module, fmt, args);
     va_end(args);
     lock_release(&klog_lock);
+}
+
+/**
+ * klog_unlocked - Log without acquiring klog_lock
+ *
+ * This variant is for use in contexts where we cannot safely acquire locks,
+ * such as from within the lock implementation itself (for deadlock detection),
+ * or during early boot before locks are fully initialized.
+ *
+ * WARNING: Output may be interleaved with other log messages if multiple CPUs
+ * call this simultaneously. Only use when necessary.
+ */
+void klog_unlocked(const char *module, const char *fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+    vklog(module, fmt, args);
+    va_end(args);
 }
 
 #ifdef COTTAGE_DEBUG

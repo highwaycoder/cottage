@@ -6,7 +6,7 @@
 #include <string.h>
 
 slab_t slabs[SLAB_COUNT];
-static lock_t slab_lock;
+static lock_t slab_lock = LOCK_INITIALIZER("slab_lock");
 
 void slaballoc_init()
 {

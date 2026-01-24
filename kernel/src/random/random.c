@@ -77,7 +77,7 @@ void random_init()
     }
 
     devrandom = (dev_random_t){
-        
+
         .resource = (resource_t){
             .stat.size = 0,
             .stat.blocks = 0,
@@ -86,6 +86,8 @@ void random_init()
             .stat.mode = 0666 | STAT_IFCHR,
             .can_mmap = true,
         },
+
+        .rng_lock = LOCK_INITIALIZER("devrandom->rng_lock"),
 
         .key[0] = seed,
         .key[2] = (seed >> 32),

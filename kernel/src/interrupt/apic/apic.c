@@ -68,7 +68,7 @@ void lapic_timer_calibrate(local_cpu_t* local_cpu)
     lapic_timer_stop();
     uint64_t samples = 0xfffff;
     lapic_write(LAPIC_REG_TIMER, (1 << 16) | 0xff); // vector 0xff, masked
-    lapic_write(LAPIC_REG_TIMER_DIV, 0);
+    lapic_write(LAPIC_REG_TIMER_DIV, 0b1011);  // Use same divisor as oneshot
 
     pit_set_reload_value(0xffff);
 
@@ -77,11 +77,13 @@ void lapic_timer_calibrate(local_cpu_t* local_cpu)
     klog("lapic", "Waiting for %u timer ticks", samples);
 
     lapic_write(LAPIC_REG_TIMER_INITCNT, (uint32_t)samples);
-    uint64_t curcnt = 0;
 
-    while((curcnt = lapic_read(LAPIC_REG_TIMER_CURCNT)) != 0)
+    // Spin until LAPIC timer counts down to 0
+    // Note: Don't add logging here - it would slow down calibration
+    // and cause the measured frequency to be wrong
+    while(lapic_read(LAPIC_REG_TIMER_CURCNT) != 0)
     {
-        klog("lapic", "Count: %d", curcnt);
+        asm volatile("pause" ::: "memory");
     }
 
     uint64_t final_pit_tick = (uint64_t) pit_get_current_count();

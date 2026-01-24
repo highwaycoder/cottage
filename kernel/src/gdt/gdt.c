@@ -5,7 +5,7 @@
 
 gdt_entry_t gdt_entries[11];
 gdt_pointer_t gdt_pointer;
-lock_t gdt_lock;
+lock_t gdt_lock = LOCK_INITIALIZER("gdt_lock");
 
 void gdt_init()
 {

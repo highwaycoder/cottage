@@ -9,6 +9,10 @@ uint64_t syscall_klog(uint64_t arg0, uint64_t arg1, uint64_t arg2,
 void vklog(const char* module, const char* msg, va_list args);
 void klog(const char *module, const char *msg, ...);
 
+// Lock-free variant for use in lock implementation and early boot.
+// WARNING: Output may interleave with other log messages.
+void klog_unlocked(const char *module, const char *msg, ...);
+
 #ifdef COTTAGE_DEBUG
 // use this to add debug logs, so that they can be distinguished from actual logs
 // and excluded from production builds

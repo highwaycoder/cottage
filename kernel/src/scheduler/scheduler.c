@@ -404,11 +404,14 @@ thread_t *new_kernel_thread(void *ip, void *arg, bool autoenqueue)
     };
 
     thread_t *t = malloc(sizeof(thread_t));
+    memset(t, 0, sizeof(thread_t));  // Zero-init all fields first
     t->process = kernel_process;
     t->cr3 = (uint64_t)kernel_process->pagemap->top_level;
     t->cpu_state = cpu_state;
     t->timeslice = 5000;
     t->cpuid = (uint64_t)-1;
+    t->lock = (lock_t)LOCK_INITIALIZER("thread->lock");
+    t->yield_await = (lock_t)LOCK_INITIALIZER("thread->yield_await");
     memcpy(t->stacks, stacks, sizeof(stacks));
     t->fpu_storage = (void *)((uint64_t)pmm_alloc(div_roundup(fpu_storage_size, PAGE_SIZE)) + HIGHER_HALF);
     t->self = t;
@@ -532,6 +535,7 @@ thread_t* new_user_thread(
     };
 
     thread_t* t = malloc(sizeof(thread_t));
+    memset(t, 0, sizeof(thread_t));  // Zero-init all fields first
     *t = (thread_t){
         .process = process,
         .cr3 = (uint64_t)process->pagemap->top_level,
@@ -540,6 +544,8 @@ thread_t* new_user_thread(
         .cpuid = -1,
         .kernel_stack = kernel_stack,
         .pf_stack = pf_stack,
+        .lock = LOCK_INITIALIZER("thread->lock"),
+        .yield_await = LOCK_INITIALIZER("thread->yield_await"),
         .stacks = {stacks}, // <-- this seems sus to me...
         .fpu_storage = (void*)(uint64_t)(pmm_alloc(div_roundup(fpu_storage_size, PAGE_SIZE)) + HIGHER_HALF)
     };
