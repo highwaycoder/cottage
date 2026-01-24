@@ -46,6 +46,12 @@ all-hdd: $(IMAGE_NAME).hdd
 .PHONY: test
 test: run-uefi
 
+# stress test target - builds with stress tests enabled and runs multiple iterations
+# Usage: make stress-test ITERATIONS=10 TIMEOUT=30
+.PHONY: stress-test
+stress-test:
+	./scripts/stress-test.sh $(ITERATIONS) $(TIMEOUT)
+
 # headless test for CI/automated testing (no GUI window)
 # Usage: make test-headless TIMEOUT=30  (runs for 30 seconds then exits)
 # Without TIMEOUT, runs until crash or manual termination
@@ -58,6 +64,9 @@ else
 endif
 
 QEMU_FLAGS := -d cpu_reset -smp cpus=1 -M q35 -m 2G -serial stdio -action panic=none
+
+# For stress testing, use multiple CPUs to maximize race condition detection
+QEMU_STRESS_FLAGS := -d cpu_reset -smp cpus=4 -M q35 -m 2G -serial stdio -action panic=none
 
 # uncomment to start gdbserver and freeze on launch
 # QEMU_FLAGS += -S -s
@@ -96,6 +105,10 @@ ifdef COTTAGE_DEBUG
 KERNEL_MAKEFLAGS := COTTAGE_DEBUG=1
 else
 KERNEL_MAKEFLAGS :=
+endif
+
+ifdef COTTAGE_STRESS_TEST
+KERNEL_MAKEFLAGS += COTTAGE_STRESS_TEST=1
 endif
 
 

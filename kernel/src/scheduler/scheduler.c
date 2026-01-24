@@ -16,10 +16,11 @@
 #include <debug/debug.h>
 #include <fs/fs.h>
 #include <term/term.h>
+#include <lock/lock.h>  // For NO_THREAD_SAFETY_ANALYSIS
 
 // use 2MB stack, similar to Linux
 #define STACK_SIZE (uint64_t)(0x200000)
-#define MAX_THREADS 512
+// MAX_THREADS is defined in scheduler.h
 
 // variables
 _Atomic bool scheduler_ready = false;
@@ -36,8 +37,15 @@ void scheduler_isr(uint32_t num, cpu_status_t *status);
 void dump_local_cpu(const local_cpu_t *cpu);
 
 // Returns the thread pointer directly (not just index) to avoid TOCTOU race.
-// The returned thread has its lock acquired. Caller must release it when done.
+// The returned thread has its lock acquired OR we're the owning CPU.
+// Caller must release it when done.
 // Returns NULL if no runnable thread found.
+//
+// THREAD SAFETY: This function has complex lock ownership semantics:
+// - If we own the thread (cpuid == our cpu), we don't need the lock
+// - If we don't own it, we acquire the lock before returning
+// The analyzer can't track this conditional ownership, so we disable analysis.
+NO_THREAD_SAFETY_ANALYSIS
 thread_t* get_next_thread(int64_t orig_i, int64_t* out_index)
 {
     uint64_t cpu_number = cpu_get_current()->cpu_number;
@@ -84,6 +92,11 @@ void scheduler_init()
     atomic_store(&scheduler_ready, true);
 }
 
+// THREAD SAFETY: The scheduler ISR has complex lock semantics:
+// - Locks are acquired by get_next_thread() and released here
+// - yield_await locks are acquired elsewhere and released here
+// - The lock flow crosses function boundaries intentionally
+NO_THREAD_SAFETY_ANALYSIS
 void scheduler_isr(__attribute__((unused)) uint32_t num, __attribute__((unused)) cpu_status_t *status)
 {
     lapic_timer_stop();
@@ -259,6 +272,10 @@ bool scheduler_dequeue_thread(thread_t* thread)
     return false;
 }
 
+// THREAD SAFETY: scheduler_yield acquires yield_await lock which is
+// released by the scheduler ISR on another CPU. This cross-CPU lock
+// handoff cannot be tracked by static analysis.
+NO_THREAD_SAFETY_ANALYSIS
 void scheduler_yield(bool save_context)
 {
     asm volatile ("cli" ::: "memory");

@@ -30,6 +30,10 @@
 #include <userland/userland.h>
 #include <stdio.h>
 
+#ifdef COTTAGE_STRESS_TEST
+#include <stress/stress.h>
+#endif
+
 // hardware-specific stuff 
 // todo: move this shit behind HAL and/or into modules
 #include <drivers/e1000/e1000.h>
@@ -301,6 +305,27 @@ void kmain_thread(void* arg)
     // todo: write console_init
     console_init();
     klog("main", "Console initialized");
+
+#ifdef COTTAGE_STRESS_TEST
+    // When stress testing is enabled, run stress tests instead of normal boot
+    klog("main", "===========================================");
+    klog("main", "  STRESS TEST MODE ENABLED");
+    klog("main", "===========================================");
+    klog("main", "");
+
+    stress_config_t config = STRESS_CONFIG_DEFAULT;
+    bool stress_passed = stress_run_all(&config);
+
+    if (stress_passed) {
+        klog("main", "Stress tests completed successfully");
+    } else {
+        klog("main", "STRESS TESTS DETECTED ISSUES");
+    }
+
+    // Exit cleanly after stress tests
+    klog("main", "Stress test run complete, halting");
+    scheduler_dequeue_and_die();
+#endif
 
     process_t* init_process = userland_start_program(false,
         vfs_root,

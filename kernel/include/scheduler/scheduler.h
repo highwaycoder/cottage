@@ -3,6 +3,8 @@
 #include <proc/proc.h>
 #include <elf/elf.h>
 
+// Maximum threads in the scheduler queue (see issue #17 for scalability discussion)
+#define MAX_THREADS 512
 
 void scheduler_init();
 void scheduler_await();
@@ -29,3 +31,7 @@ bool enqueue_thread(thread_t* thread, bool by_signal);
 extern _Atomic uint8_t scheduler_vector;
 extern _Atomic bool scheduler_ready;
 extern process_t* kernel_process;
+
+// Scheduler internals exposed for stress testing and debugging
+extern _Atomic(thread_t*) scheduler_running_queue[MAX_THREADS];
+extern _Atomic uint64_t working_cpus;

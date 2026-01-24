@@ -15,10 +15,9 @@ define DEFAULT_VAR =
     endif
 endef
 
-# It is suggested to use a custom built cross toolchain to build a kernel.
-# We are using the standard "cc" here, it may work by using
-# the host system's toolchain, but this is not guaranteed.
-override DEFAULT_CC := cc
+# Use clang for better warnings and thread safety analysis.
+# Override with: make CC=gcc if needed.
+override DEFAULT_CC := clang
 $(eval $(call DEFAULT_VAR,CC,$(DEFAULT_CC)))
 
 # Same thing for "ld" (the linker).
@@ -53,6 +52,7 @@ override CFLAGS += \
     -Wno-unknown-pragmas \
     -Wno-implicit-fallthrough \
     -Wno-unused-parameter \
+    -Wthread-safety \
     -std=gnu11 \
     -ffreestanding \
     -fno-stack-protector \
@@ -76,6 +76,10 @@ override CFLAGS += \
 
 ifdef COTTAGE_DEBUG
     override CFLAGS += -DCOTTAGE_DEBUG -DCOTTAGE_DBG_INCLUDE_ABORT_STACK
+endif
+
+ifdef COTTAGE_STRESS_TEST
+    override CFLAGS += -DCOTTAGE_STRESS_TEST
 endif
 
 # Internal C preprocessor flags that should not be changed by the user.
