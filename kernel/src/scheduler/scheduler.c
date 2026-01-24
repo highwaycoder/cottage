@@ -547,7 +547,7 @@ thread_t* new_user_thread(
             // todo: potential major bug hiding in here, strlen probably not
             //  safe and we're copying a byte from after the end of a string?
             stack = stack - (strlen(argv[i]) + 1);
-            memcpy(stack, envp[i], strlen(argv[i]) + 1);
+            memcpy(stack, argv[i], strlen(argv[i]) + 1);
         }
 
 		// re-align stack pointer to 16 bytes

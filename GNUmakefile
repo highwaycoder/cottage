@@ -41,11 +41,16 @@ all: $(IMAGE_NAME).iso
 .PHONY: all-hdd
 all-hdd: $(IMAGE_NAME).hdd
 
-# alias test=run-hdd-uefi (cuts down on keystrokes)
+# alias test=run-uefi (cuts down on keystrokes)
 .PHONY: test
 test: run-uefi
 
-QEMU_FLAGS := -d cpu_reset -smp cpus=1 -M q35 -m 2G -serial stdio -action panic=none 
+# headless test for CI/automated testing (no GUI window)
+.PHONY: test-headless
+test-headless: ovmf $(IMAGE_NAME).iso
+	qemu-system-x86_64 $(QEMU_FLAGS) -display none -bios $(OVMF_IMAGE) -cdrom $(IMAGE_NAME).iso -boot d
+
+QEMU_FLAGS := -d cpu_reset -smp cpus=1 -M q35 -m 2G -serial stdio -action panic=none
 
 # uncomment to start gdbserver and freeze on launch
 # QEMU_FLAGS += -S -s

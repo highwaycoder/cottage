@@ -177,7 +177,7 @@ pagemap_t new_pagemap()
 
     return (pagemap_t){
         .top_level = top_level,
-        .mmap_ranges = (void*[]){}
+        .mmap_ranges = NULL
     };
 }
 
