@@ -9,7 +9,16 @@ typedef void (*syscall_fn_t)();
 
 syscall_fn_t syscall_table[SYSCALL_NUM_ENTRIES];
 
-void syscall_entry()
+// syscall_handler - C handler called from syscall_entry.S
+//
+// This function is called from the assembly syscall entry point after:
+// - swapgs has been executed (GS now points to thread_t)
+// - User RSP saved, kernel stack loaded
+// - RCX/R11 (return RIP/RFLAGS) saved on kernel stack
+// - Syscall number stored in thread->syscall_num
+//
+// The return value in RAX will be passed back to userspace.
+void syscall_handler()
 {
     // get syscall number from current thread
     thread_t* current_thread = get_current_thread();

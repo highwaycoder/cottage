@@ -103,11 +103,14 @@ void cpu_init(struct limine_smp_info* smp_info)
     wrmsr(0xc0000080, efer);
     wrmsr(0xc0000081, 0x0033002800000000);
 
-    // entry address
-    wrmsr(0xc0000082, (uint64_t)((void*)syscall_entry));
+    // entry address - use assembly wrapper that handles register save/restore and sysret
+    wrmsr(0xc0000082, (uint64_t)((void*)syscall_entry_asm));
 
-    // ported from VINIX - this sets up the IA32_ENERGY_PERF_BIAS register, putting it in performance mode (unsetting energy-efficient mode).
-    wrmsr(0x00000084, (uint64_t)~((uint32_t)0x002));
+    // SFMASK (IA32_FMASK) - bits to clear in RFLAGS when syscall executes
+    // We MUST clear IF (bit 9, 0x200) to disable interrupts during syscall entry.
+    // Without this, there's a race window between swapgs and loading kernel stack
+    // where an interrupt could fire and corrupt the GS state.
+    wrmsr(0xc0000084, 0x200);
 
     // enable PAT (write-combining/write-protect)
     uint64_t pat_msr = rdmsr(0x277);

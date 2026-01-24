@@ -172,6 +172,16 @@ void scheduler_isr(__attribute__((unused)) uint32_t num, __attribute__((unused))
     klog("sched", "new_cpu_state = %lp", new_cpu_state);
     dump_local_cpu(cpu);
 
+    // Note: We do NOT do swapgs here before iretq, even when returning to user mode.
+    // The scheduler directly sets GS_BASE and KERNEL_GS_BASE via MSR writes above
+    // (set_gs_base/set_kernel_gs_base), so swapgs would undo the correct setup.
+    //
+    // This is different from the normal ISR return path (in isr.S) where swapgs
+    // at entry and exit are symmetric. Here we're switching to a different thread
+    // with directly-set MSR values.
+    //
+    // Use "r" constraint to force new_cpu_state into a register, avoiding any
+    // memory access after we clobber RSP.
     asm volatile(
         "movq %0, %%rsp\n"
         "popq %%rax\n"
@@ -194,14 +204,9 @@ void scheduler_isr(__attribute__((unused)) uint32_t num, __attribute__((unused))
         "popq %%r14\n"
         "popq %%r15\n"
         "addq $8, %%rsp\n"
-
-        "cmpq $%c1, 8(%%rsp)\n"
-        "je 1f\n"
-        "swapgs\n"
-        "1:\n"
         "iretq\n"
         :
-        : "rm" (new_cpu_state), "i" (KERNEL_CODE_SEGMENT)
+        : "r" (new_cpu_state)
         : "memory"
         );
 
