@@ -89,9 +89,17 @@ typedef struct process_s {
     uint64_t pid;
     uint64_t parent_pid;
     pagemap_t* pagemap;
-    uint64_t thread_stack_top;
-    thread_t* threads[PROC_MAX_THREADS_PER_PROCESS];
-    size_t thread_count;
+
+    // Thread management - protected by threads_lock
+    // Must hold this lock when:
+    // - Reading/writing thread_count
+    // - Reading/writing threads[] array
+    // - Reading/writing thread_stack_top
+    lock_t threads_lock;
+    uint64_t thread_stack_top GUARDED_BY(threads_lock);
+    thread_t* threads[PROC_MAX_THREADS_PER_PROCESS] GUARDED_BY(threads_lock);
+    size_t thread_count GUARDED_BY(threads_lock);
+
     lock_t fds_lock;
     void* fds[PROC_MAX_FDS];
     struct process_t* children[PROC_MAX_CHILD_PROCESSES];

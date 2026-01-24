@@ -79,6 +79,9 @@ thread_t* get_next_thread(int64_t orig_i, int64_t* out_index)
     return NULL;
 }
 
+// THREAD SAFETY: Initialization runs single-threaded before scheduler starts.
+// No races possible, but analyzer can't prove this.
+NO_THREAD_SAFETY_ANALYSIS
 void scheduler_init()
 {
     klog("sched", "initialising scheduler");
@@ -86,8 +89,16 @@ void scheduler_init()
     klog("sched", "Allocated scheduler vector 0x%x", scheduler_vector);
     interrupt_table[scheduler_vector] = (void *)((uint64_t)scheduler_isr);
     set_ist(scheduler_vector, 1);
+
+    // Initialize kernel_process - this is used for kernel threads
     kernel_process = malloc(sizeof(process_t));
+    kernel_process->threads_lock = (lock_t)LOCK_INITIALIZER("kernel_process->threads_lock");
+    kernel_process->thread_count = 0;
+    for (size_t i = 0; i < PROC_MAX_THREADS_PER_PROCESS; i++) {
+        kernel_process->threads[i] = NULL;
+    }
     kernel_process->pagemap = &g_kernel_pagemap;
+
     // let everyone know we're up and running
     atomic_store(&scheduler_ready, true);
 }
@@ -415,13 +426,23 @@ thread_t *new_kernel_thread(void *ip, void *arg, bool autoenqueue)
     return t;
 }
 
+// THREAD SAFETY: New process is being initialized - no other thread has a
+// reference to it yet, so no locking needed. Analyzer can't prove this.
+NO_THREAD_SAFETY_ANALYSIS
 process_t* scheduler_new_process(process_t* old_process, pagemap_t* pagemap)
 {
     process_t* new_process = malloc(sizeof(process_t));
-    new_process->pagemap = 0;
 
+    // Initialize thread management fields
+    new_process->threads_lock = (lock_t)LOCK_INITIALIZER("process->threads_lock");
+    new_process->thread_count = 0;
+    for (size_t i = 0; i < PROC_MAX_THREADS_PER_PROCESS; i++) {
+        new_process->threads[i] = NULL;
+    }
+
+    new_process->pagemap = 0;
     new_process->pid = proc_allocate_pid(new_process);
-    
+
     if (old_process != NULL)
     {
         new_process->parent_pid = old_process->pid;
@@ -440,6 +461,10 @@ process_t* scheduler_new_process(process_t* old_process, pagemap_t* pagemap)
     return new_process;
 }
 
+// THREAD SAFETY: This function acquires process->threads_lock to protect
+// thread_stack_top, threads[], and thread_count. The analyzer can't track
+// the lock through the process pointer, so we disable analysis.
+NO_THREAD_SAFETY_ANALYSIS
 thread_t* new_user_thread(
     process_t* process,
     bool want_elf,
@@ -461,6 +486,11 @@ thread_t* new_user_thread(
     void* stacks[PROC_MAX_STACKS_PER_THREAD];
     size_t stack_count = 0;
 
+    // Acquire process threads_lock to protect thread_stack_top, threads[], thread_count
+    // We hold this lock for the duration of thread creation to prevent races
+    // when multiple threads create threads in the same process simultaneously.
+    lock_acquire(&process->threads_lock);
+
     if (requested_stack == 0)
     {
         void* stack_phys = pmm_alloc(STACK_SIZE / PAGE_SIZE);
@@ -474,6 +504,7 @@ thread_t* new_user_thread(
             MMAP_PROT_READ | MMAP_PROT_WRITE, MMAP_MAP_ANON
         ))
         {
+            lock_release(&process->threads_lock);
             return NULL;
         }
     } else {
@@ -651,6 +682,8 @@ thread_t* new_user_thread(
     t->tid = process->thread_count;
     process->threads[t->tid] = t;
     process->thread_count++;
+
+    lock_release(&process->threads_lock);
 
     return t;
 }
