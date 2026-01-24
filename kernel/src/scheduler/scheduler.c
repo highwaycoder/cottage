@@ -49,7 +49,8 @@ NO_THREAD_SAFETY_ANALYSIS
 thread_t* get_next_thread(int64_t orig_i, int64_t* out_index)
 {
     uint64_t cpu_number = cpu_get_current()->cpu_number;
-    klog("sched", "Getting next thread for cpu %d", cpu_number);
+    // Use klog_unlocked in ISR context to avoid deadlock if main thread holds klog_lock
+    klog_unlocked("sched", "Getting next thread for cpu %d", cpu_number);
     int64_t index = orig_i + 1;
 
     while (1)
@@ -117,9 +118,9 @@ void scheduler_isr(__attribute__((unused)) uint32_t num, __attribute__((unused))
     int64_t new_index;
     thread_t *new_thread = get_next_thread(cpu->last_run_queue_index, &new_index);
 
-    klog("sched", "Getting ready to try to run %d on %d", new_index, cpu->cpu_number);
+    klog_unlocked("sched", "Getting ready to try to run %d on %d", new_index, cpu->cpu_number);
 
-    klog("sched", "current_thread=%x, new_index=%d, new_thread=%x", current_thread, new_index, new_thread);
+    klog_unlocked("sched", "current_thread=%x, new_index=%d, new_thread=%x", current_thread, new_index, new_thread);
 
     if (current_thread != 0)
     {
@@ -146,7 +147,7 @@ void scheduler_isr(__attribute__((unused)) uint32_t num, __attribute__((unused))
 
     if (new_thread == NULL)
     {
-        klog("sched", "new_thread == NULL (no runnable thread)");
+        klog_unlocked("sched", "new_thread == NULL (no runnable thread)");
         lapic_eoi();
         set_gs_base((uint64_t)&cpu->cpu_number);
         set_kernel_gs_base((uint64_t)&cpu->cpu_number);
@@ -179,7 +180,7 @@ void scheduler_isr(__attribute__((unused)) uint32_t num, __attribute__((unused))
         set_gs_base((uint64_t)current_thread);
         set_kernel_gs_base((uint64_t)current_thread);
     }
-    klog("sched", "set current thread to %p", current_thread);
+    klog_unlocked("sched", "set current thread to %p", current_thread);
     set_fs_base(current_thread->fs_base);
 
     cpu->tss.ist3 = current_thread->pf_stack;
@@ -198,10 +199,10 @@ void scheduler_isr(__attribute__((unused)) uint32_t num, __attribute__((unused))
     if (new_cpu_state->cs == USER_CODE_SEGMENT)
     {
         // todo: dispatch a signal?
-        klog("sched", "Should dispatch signal but not yet implemented");
+        klog_unlocked("sched", "Should dispatch signal but not yet implemented");
     }
 
-    klog("sched", "new_cpu_state = %lp", new_cpu_state);
+    klog_unlocked("sched", "new_cpu_state = %lp", new_cpu_state);
     dump_local_cpu(cpu);
 
     // Note: We do NOT do swapgs here before iretq, even when returning to user mode.
@@ -388,6 +389,10 @@ thread_t *new_kernel_thread(void *ip, void *arg, bool autoenqueue)
     stacks[stack_count++] = stack_phys;
     uint64_t stack = ((uint64_t)stack_phys) + STACK_SIZE + HIGHER_HALF;
 
+    // Allocate page fault stack for IST3 (needed for handling page faults)
+    void *pf_stack_phys = pmm_alloc(STACK_SIZE / PAGE_SIZE);
+    stacks[stack_count++] = pf_stack_phys;
+    uint64_t pf_stack = ((uint64_t)pf_stack_phys) + STACK_SIZE + HIGHER_HALF;
 
     klog("sched", "stack=%x", stack);
 
@@ -410,6 +415,7 @@ thread_t *new_kernel_thread(void *ip, void *arg, bool autoenqueue)
     t->cpu_state = cpu_state;
     t->timeslice = 5000;
     t->cpuid = (uint64_t)-1;
+    t->pf_stack = pf_stack;  // Page fault stack for IST3
     t->lock = (lock_t)LOCK_INITIALIZER("thread->lock");
     t->yield_await = (lock_t)LOCK_INITIALIZER("thread->yield_await");
     memcpy(t->stacks, stacks, sizeof(stacks));
