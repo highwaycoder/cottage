@@ -29,13 +29,16 @@ _Atomic(thread_t *) scheduler_running_queue[MAX_THREADS];
 _Atomic uint64_t working_cpus = 0;
 
 // functions
-int64_t get_next_thread(int64_t orig_i);
+thread_t* get_next_thread(int64_t orig_i, int64_t* out_index);
 void scheduler_isr(uint32_t num, cpu_status_t *status);
 
 // debug function found in panic.c (forward declared here because it isn't in panic.h)
 void dump_local_cpu(const local_cpu_t *cpu);
 
-int64_t get_next_thread(int64_t orig_i)
+// Returns the thread pointer directly (not just index) to avoid TOCTOU race.
+// The returned thread has its lock acquired. Caller must release it when done.
+// Returns NULL if no runnable thread found.
+thread_t* get_next_thread(int64_t orig_i, int64_t* out_index)
 {
     uint64_t cpu_number = cpu_get_current()->cpu_number;
     klog("sched", "Getting next thread for cpu %d", cpu_number);
@@ -47,12 +50,13 @@ int64_t get_next_thread(int64_t orig_i)
         if (index >= MAX_THREADS)
             index = 0;
 
-        thread_t *t = scheduler_running_queue[index];
-        if (t != 0)
+        thread_t *t = atomic_load(&scheduler_running_queue[index]);
+        if (t != NULL)
         {
             if (atomic_load(&t->cpuid) == cpu_number || lock_test_and_acquire(&t->lock))
             {
-                return index;
+                *out_index = index;
+                return t;  // Return the actual thread pointer we locked
             }
         }
 
@@ -63,7 +67,8 @@ int64_t get_next_thread(int64_t orig_i)
         index++;
     }
 
-    return -1;
+    *out_index = -1;
+    return NULL;
 }
 
 void scheduler_init()
@@ -85,18 +90,19 @@ void scheduler_isr(__attribute__((unused)) uint32_t num, __attribute__((unused))
     local_cpu_t *cpu = cpu_get_current();
     atomic_store(&cpu->is_idle, false);
     thread_t *current_thread = get_current_thread();
-    int64_t new_index = get_next_thread(cpu->last_run_queue_index); 
+    int64_t new_index;
+    thread_t *new_thread = get_next_thread(cpu->last_run_queue_index, &new_index);
 
     klog("sched", "Getting ready to try to run %d on %d", new_index, cpu->cpu_number);
 
-    klog("sched", "current_thread=%x, new_index=%d, new_thread=%x", current_thread, new_index, scheduler_running_queue[new_index]);
+    klog("sched", "current_thread=%x, new_index=%d, new_thread=%x", current_thread, new_index, new_thread);
 
     if (current_thread != 0)
     {
         lock_release(&current_thread->yield_await);
 
         // the happy case, we're just running the same thread again
-        if (new_index == cpu->last_run_queue_index && current_thread->is_in_queue)
+        if (new_thread == current_thread && current_thread->is_in_queue)
         {
             lapic_eoi();
             lapic_timer_oneshot(cpu, scheduler_vector, current_thread->timeslice);
@@ -114,9 +120,9 @@ void scheduler_isr(__attribute__((unused)) uint32_t num, __attribute__((unused))
         atomic_fetch_sub(&working_cpus, 1);
     }
 
-    if (new_index == -1)
+    if (new_thread == NULL)
     {
-        klog("sched", "new_index == -1");
+        klog("sched", "new_thread == NULL (no runnable thread)");
         lapic_eoi();
         set_gs_base((uint64_t)&cpu->cpu_number);
         set_kernel_gs_base((uint64_t)&cpu->cpu_number);
@@ -131,7 +137,9 @@ void scheduler_isr(__attribute__((unused)) uint32_t num, __attribute__((unused))
 
     atomic_fetch_add(&working_cpus, 1);
 
-    current_thread = scheduler_running_queue[new_index];
+    // Use the thread pointer we already obtained (and locked) from get_next_thread.
+    // Do NOT re-fetch from scheduler_running_queue - that's a TOCTOU race!
+    current_thread = new_thread;
     cpu->last_run_queue_index = new_index;
 
     if (current_thread->cpu_state.cs == USER_CODE_SEGMENT)
