@@ -146,7 +146,7 @@ For code that waits for or delivers signals/events:
 ### Scheduler (`kernel/src/scheduler/`)
 - `scheduler_running_queue[]` - Protected by per-thread locks + atomic ops
 - `thread->cpuid` - Atomic, indicates which CPU owns thread
-- `thread->is_in_queue` - **CAUTION**: Non-atomic, potential races
+- `thread->is_in_queue` - Atomic bool with atomic_load/store operations
 - `working_cpus` - Atomic counter
 
 ### Process/Thread (`kernel/src/proc/`)

@@ -126,7 +126,7 @@ void scheduler_isr(__attribute__((unused)) uint32_t num, __attribute__((unused))
         lock_release(&current_thread->yield_await);
 
         // the happy case, we're just running the same thread again
-        if (new_thread == current_thread && current_thread->is_in_queue)
+        if (new_thread == current_thread && atomic_load(&current_thread->is_in_queue))
         {
             lapic_eoi();
             lapic_timer_oneshot(cpu, scheduler_vector, current_thread->timeslice);
@@ -263,7 +263,7 @@ void scheduler_await()
 bool scheduler_dequeue_thread(thread_t* thread)
 {
     // shortcut for duplicate calls
-    if(thread->is_in_queue == false)
+    if(atomic_load(&thread->is_in_queue) == false)
     {
         return true;
     }
@@ -272,7 +272,7 @@ bool scheduler_dequeue_thread(thread_t* thread)
     {
         if(atomic_compare_exchange_strong(&scheduler_running_queue[i], &thread, NULL))
         {
-            thread->is_in_queue = false;
+            atomic_store(&thread->is_in_queue, false);
             return true;
         }
     }
@@ -346,7 +346,7 @@ void scheduler_dequeue_and_die()
 bool enqueue_thread(thread_t *thread, bool by_signal)
 {
     // shortcut for duplicate calls
-    if (thread->is_in_queue)
+    if (atomic_load(&thread->is_in_queue))
         return true;
 
     klog("sched", "Enqueueing thread %x", thread);
@@ -358,7 +358,7 @@ bool enqueue_thread(thread_t *thread, bool by_signal)
         thread_t *expected = NULL;
         if (atomic_compare_exchange_strong(&scheduler_running_queue[i], &expected, thread))
         {
-            thread->is_in_queue = true;
+            atomic_store(&thread->is_in_queue, true);
 
             // wake up any idle CPUs
             for (uint64_t i = 0; i < cpu_count; i++)

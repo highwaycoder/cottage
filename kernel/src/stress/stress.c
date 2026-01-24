@@ -562,7 +562,7 @@ bool stress_invariant_check(void)
             queue_count++;
 
             // Every thread in queue should have is_in_queue=true
-            if (!t->is_in_queue) {
+            if (!atomic_load(&t->is_in_queue)) {
                 klog("stress", "INVARIANT VIOLATION: Thread %p in queue but is_in_queue=false", t);
                 atomic_fetch_add(&stat_invariant_failures, 1);
                 ok = false;

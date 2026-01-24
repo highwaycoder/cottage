@@ -59,7 +59,9 @@ typedef struct thread_s {
     // thread id
     uint64_t tid;
     // is the thread currently queued for running?
-    bool is_in_queue;
+    // Atomic because multiple CPUs may read/write this concurrently
+    // during enqueue/dequeue operations
+    _Atomic bool is_in_queue;
     lock_t lock;
     process_t* process;
     cpu_status_t cpu_state;

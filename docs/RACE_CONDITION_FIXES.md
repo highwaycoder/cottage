@@ -42,9 +42,9 @@ This document tracks specific race conditions identified in the Cottage kernel a
 
 ### Scheduler - `kernel/src/scheduler/scheduler.c`
 
-- [ ] **SCHED-1: `is_in_queue` non-atomic** (proc.h line 62)
+- [x] **SCHED-1: `is_in_queue` non-atomic** (proc.h line 62)
   - Issue: `bool is_in_queue` accessed without synchronization from multiple CPUs
-  - Fix: Change to `_Atomic bool` and use atomic load/store
+  - Fix: Changed to `_Atomic bool` and use atomic load/store
 
 ---
 
@@ -75,6 +75,10 @@ This document tracks specific race conditions identified in the Cottage kernel a
 ---
 
 ## Completed Fixes
+
+- [x] **SCHED-1: `is_in_queue` non-atomic** (Fixed: commit TBD)
+  - Issue: `bool is_in_queue` accessed without synchronization from multiple CPUs
+  - Fix: Changed to `_Atomic bool` and updated all access sites to use atomic_load/atomic_store
 
 - [x] **PROC-1: Thread creation race** (Fixed: commit 75a6a5a)
   - Issue: `process->thread_count`, `threads[]`, `thread_stack_top` accessed without lock
