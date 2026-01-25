@@ -3,9 +3,23 @@
 #include <stdbool.h>
 #include <malloc.h>
 #include <string.h>
+#include <errors/errno.h>
 
 static network_device_descriptor_t* devices = NULL;
 static size_t device_count;
+
+uint8_t* net_get_mac(const char* devid)
+{
+
+    for(size_t i = 0; i < device_count; i++)
+    {
+        if(strcmp(devices[i].identifier, devid) == 0)
+        {
+            return devices[i].device->mac;
+        }
+    }
+    return NULL;
+}
 
 void net_register_device(const char *identifier, network_device_t* device)
 {
@@ -27,23 +41,16 @@ void net_register_device(const char *identifier, network_device_t* device)
 // it is not expected for typical users to be using this function directly.
 // returns the number of bytes written (if <= len, it means the write was
 // truncated, possibly due to lack of buffer space)
-size_t net_write(const char* devid, uint8_t* ptr, size_t len)
+ssize_t net_write(const char* devid, uint8_t* ptr, size_t len)
 {
     for(size_t i = 0; i < device_count; i++)
     {
         if(strcmp(devices[i].identifier, devid) == 0)
         {
-            if(devices[i].device->send_buf_len + len > devices[i].device->send_buf_max)
-            {
-                // only send as many bytes as we actually can
-                len = (devices[i].device->send_buf_max - devices[i].device->send_buf_len);
-            }
-            memcpy(devices[i].device->send_buf, ptr, len);
-            devices[i].device->send_buf_len += len;
-            break;
+            return devices[i].device->transmit(ptr, len);
         }
     }
-    return len;
+    return -ENODEV;
 }
 
 // read at most <len> bytes from the device.

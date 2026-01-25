@@ -29,6 +29,7 @@
 #include <random/random.h>
 #include <userland/userland.h>
 #include <stdio.h>
+#include <string.h>
 
 #ifdef COTTAGE_STRESS_TEST
 #include <stress/stress.h>
@@ -210,9 +211,6 @@ void _start(void)
     }
 
     // todo: move to kmain_thread
-    // klog("main", "Enumerating PCI devices");
-    // pci_init();
-    // klog("main", "PCI devices enumerated");
 
     klog("main", "Initializing SMP");
     klog("main", "SMP response was: %x", smp_request.response);
@@ -271,7 +269,10 @@ void kmain_thread(void* arg)
     klog("main", "Initializing filesystem");
     fs_init();
     klog("main", "Filesystem initialized");
-
+    
+    klog("main", "Enumerating PCI devices");
+    pci_init();
+    klog("main", "PCI devices enumerated");
     
     // mount -t tmpfs /
     if(!fs_mount(vfs_root, "", "/", FS_TMPFS))

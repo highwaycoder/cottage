@@ -5,6 +5,7 @@
 #include <panic.h>
 #include <stdbool.h>
 #include <net/network.h>
+#include <errors/errno.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -96,7 +97,8 @@ void tx_init()
     for(uint16_t i = 0; i < E1000_NUM_TX_DESC; i++)
     {
         tx_descs[i] = (e1000_tx_desc*) ((uint8_t*)descs + i * 16);
-        tx_descs[i]->addr = 0;
+        // allocate one page for tx buffer
+        tx_descs[i]->addr = (uint64_t)pmm_alloc(1);
         tx_descs[i]->cmd = 0;
         tx_descs[i]->status = TSTA_DD;
     }
@@ -112,6 +114,7 @@ void tx_init()
 
 	write_command(REG_TCTRL, 0b0110000000000111111000011111010);
 	write_command(REG_TIPG, 0x0060200A);
+
 }
 
 void set_mac_address(uint8_t new_addr[6])
@@ -127,6 +130,23 @@ void set_mac_address(uint8_t new_addr[6])
 
     write_command(0x5400, mac_low);
     write_command(0x5404, mac_high);
+}
+
+ssize_t e1000_send(uint8_t* data, uint16_t len)
+{
+    if (!(tx_descs[tx_cur]->status & TSTA_DD)) {
+        return -ENOBUFS;
+    }
+    uint8_t* virt_buf = (uint8_t *)tx_descs[tx_cur]->addr + HIGHER_HALF;
+    memcpy(virt_buf, data, len);
+    tx_descs[tx_cur]->length = len;
+    
+    tx_descs[tx_cur]->cmd = CMD_EOP | CMD_IFCS | CMD_RS;
+    tx_descs[tx_cur]->status = 0;
+    tx_cur = (tx_cur + 1) % E1000_NUM_TX_DESC;
+    write_command(REG_TXDESCTAIL, tx_cur);
+
+    return len;
 }
 
 void e1000_init(uint64_t _mmio_address)
@@ -170,14 +190,13 @@ void e1000_init(uint64_t _mmio_address)
     // and register it with the abstraction layer
     memcpy(&dev, &((network_device_t) {
         .name = "e1000",
-        .send_buf = pmm_alloc(SEND_BUF_PAGES), 
-        .send_buf_len = 0,
-        .send_buf_max = SEND_BUF_PAGES * PAGE_SIZE,
+        .transmit = e1000_send,
         .recv_buf = pmm_alloc(RECV_BUF_PAGES),
         .recv_buf_len = 0,
         .recv_buf_max = RECV_BUF_PAGES * PAGE_SIZE,
-        .flags = NET_DEV_STATUS_ENABLE | NET_DEV_STATUS_LINK | NET_DEV_STATUS_LINK_READY
+        .flags = NET_DEV_STATUS_ENABLE | NET_DEV_STATUS_LINK | NET_DEV_STATUS_LINK_READY,
     }), sizeof(network_device_t));
+    memcpy(&dev.mac, mac_address, 6);
 
     // recv pointer starts at the start of the recv buffer
     dev.recv_buf_read_ptr = malloc(sizeof(uint8_t*));
@@ -185,6 +204,7 @@ void e1000_init(uint64_t _mmio_address)
 
     net_register_device("eth0", &dev);
 }
+
 
 void write_command(uint16_t address, uint32_t value)
 {

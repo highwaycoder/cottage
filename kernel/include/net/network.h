@@ -1,5 +1,6 @@
 #pragma once
 
+#include <sys/types.h>
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -15,14 +16,7 @@ typedef struct
 {
     // the device's internal name (e.g "E1000")
     const char *name;
-    // write bytes here to send them to the network
-    uint8_t *send_buf;
-
-    // write >0 to this file and the network device will send it
-    uint32_t send_buf_len;
-
-    // the size (in bytes) of the send buffer
-    const uint32_t send_buf_max;
+    ssize_t (*transmit)(uint8_t* data, uint16_t len);
 
     // read bytes from here when they become available
     uint8_t *recv_buf;
@@ -40,6 +34,9 @@ typedef struct
 
     // various control flags, used to control the device
     const uint8_t flags;
+
+    // MAC address
+    uint8_t mac[6];
 } network_device_t;
 
 typedef struct
@@ -56,3 +53,5 @@ void net_register_device(const char *identifier, network_device_t* device);
 // initialises the network, if there are no devices registered,
 // it will return false.
 bool net_init();
+ssize_t net_write(const char* devid, uint8_t* ptr, size_t len);
+uint8_t* net_get_mac(const char* devid);

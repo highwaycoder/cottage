@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <io/io.h>
 #include <mem/pagemap.h>
+#include <mem/pmm.h>
 #include <lock/lock.h>
 #include <klog/klog.h>
 #include <acpi/acpi.h>
@@ -14,7 +15,7 @@
 #define COMMAND_PORT 0xcf8
 #define DATA_PORT 0xcfc
 
-extern pagemap_t *g_kernel_pagemap;
+extern pagemap_t g_kernel_pagemap;
 
 const char *device_classes[] = {
     "Unclassified",
@@ -94,9 +95,9 @@ void enumerate_function(uint64_t address, uint64_t function, __attribute__((unus
 
     uint64_t function_address = address + offset;
 
-    map_page(g_kernel_pagemap, function_address, function_address, PTE_FLAG_PRESENT | PTE_FLAG_WRITABLE);
+    map_page(&g_kernel_pagemap, function_address + HIGHER_HALF, function_address, PTE_FLAG_PRESENT | PTE_FLAG_WRITABLE);
 
-    pci_header_0_t *pci_device_header = (pci_header_0_t *)function_address;
+    pci_header_0_t *pci_device_header = (pci_header_0_t *)(function_address + HIGHER_HALF);
 
     if (pci_device_header->header.device_id == 0)
     {
@@ -137,7 +138,8 @@ void enumerate_function(uint64_t address, uint64_t function, __attribute__((unus
 
     // this is hacky, I don't like this
     if (pci_device_header->header.vendor_id == E1000_PCI_VENDOR &&
-        pci_device_header->header.device_id == E1000_PCI_DEVICE
+        (pci_device_header->header.device_id == E1000_PCI_DEVICE ||
+         pci_device_header->header.device_id == 0x100E)  // QEMU e1000
     ) {
         klog("pci", "Found E1000 Network Card, initializing driver");
         bool init = false;
@@ -235,9 +237,9 @@ void enumerate_device(uint64_t bus_address, uint64_t device, uint16_t bus)
 
     uint64_t device_address = bus_address + offset;
 
-    map_page(g_kernel_pagemap, device_address, device_address, PTE_FLAG_PRESENT | PTE_FLAG_WRITABLE);
+    map_page(&g_kernel_pagemap, device_address + HIGHER_HALF, device_address, PTE_FLAG_PRESENT | PTE_FLAG_WRITABLE);
 
-    pci_device_header_t *pci_device_header = (pci_device_header_t *)device_address;
+    pci_device_header_t *pci_device_header = (pci_device_header_t *)(device_address + HIGHER_HALF);
 
     if (pci_device_header->device_id == 0)
     {
@@ -261,9 +263,9 @@ void enumerate_bus(uint64_t base_address, uint64_t bus)
     uint64_t offset = bus << 20;
 
     uint64_t bus_address = base_address + offset;
-    map_page(g_kernel_pagemap, bus_address, bus_address, PTE_FLAG_PRESENT | PTE_FLAG_WRITABLE);
+    map_page(&g_kernel_pagemap, bus_address + HIGHER_HALF, bus_address, PTE_FLAG_PRESENT | PTE_FLAG_WRITABLE);
 
-    pci_device_header_t *pci_device_header = (pci_device_header_t *)bus_address;
+    pci_device_header_t *pci_device_header = (pci_device_header_t *)(bus_address + HIGHER_HALF);
 
     if (pci_device_header->device_id == 0)
     {
@@ -291,7 +293,7 @@ void pci_init()
     for (int i = 0; i < entries; i++)
     {
         mcfg_device_config_t *device_config = (mcfg_device_config_t *)(((uint64_t)mcfg_table) + sizeof(mcfg_header_t) + (sizeof(mcfg_device_config_t) * i));
-        klog("pci", "Enumerating busses between %d and %d", device_config->start_pci_bus, device_config->end_pci_bus);
+        klog("pci", "MCFG base_address=%lx, busses %d to %d", device_config->base_address, device_config->start_pci_bus, device_config->end_pci_bus);
         for (size_t bus = device_config->start_pci_bus; bus < device_config->end_pci_bus; bus++)
         {
             enumerate_bus(device_config->base_address, bus);

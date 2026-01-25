@@ -76,6 +76,15 @@ endif
 
 QEMU_FLAGS := -d cpu_reset -smp cpus=1 -M q35 -m 2G -serial stdio -action panic=none
 
+# Networking: e1000 NIC with user-mode networking
+QEMU_FLAGS += -netdev user,id=net0 -device e1000,netdev=net0
+
+# Packet capture: use PCAP=1 to dump packets to packets.pcap
+# Usage: make run-uefi PCAP=1
+ifdef PCAP
+QEMU_FLAGS += -object filter-dump,id=dump0,netdev=net0,file=packets.pcap
+endif
+
 # For stress testing, use multiple CPUs to maximize race condition detection
 QEMU_STRESS_FLAGS := -d cpu_reset -smp cpus=4 -M q35 -m 2G -serial stdio -action panic=none
 
