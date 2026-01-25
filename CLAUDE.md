@@ -14,6 +14,22 @@ This is a **learning/educational project**. The primary goal is understanding OS
 
 Slower progress with thorough explanations is preferred over fast, unexplained changes.
 
+## User Implements, Claude Guides
+
+**Do not write code directly.** Instead:
+- Discuss the problem and potential approaches
+- Explain relevant concepts, tradeoffs, and gotchas
+- Let the user implement the fix themselves
+- Review the user's implementation and provide feedback
+
+This maximizes learning value. Writing code for the user bypasses the educational benefit of working through the implementation details. The user learns more by:
+1. Understanding the problem through discussion
+2. Reasoning about the solution approach
+3. Writing the code themselves
+4. Getting feedback on their implementation
+
+Exception: Trivial changes (typos, obvious one-liners) can be written directly if the user requests it.
+
 ## Project Overview
 
 Cottage is an experimental x86_64 operating system with a kernel-space web server. The goal is an OS whose userspace is created primarily using JavaScript running in a browser. Written in C (GNU11) and x86_64 assembly.
