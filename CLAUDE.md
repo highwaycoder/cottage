@@ -52,11 +52,12 @@ Debug build: `COTTAGE_DEBUG=1 make all`
 
 **How to run:**
 ```bash
-make test-parallel                        # 20 runs, auto-detect parallelism
-make test-parallel RUNS=50                # More runs for better statistics
-make test-parallel RUNS=30 CPUS=1         # Single-core VMs (no SMP races)
-./scripts/test-parallel.sh -v             # Verbose mode (show failures)
-./scripts/test-parallel.sh -p "panic"     # Custom pattern (look for panics)
+make test-parallel                                      # 20 runs, auto-detect parallelism
+make test-parallel RUNS=50                              # More runs for better statistics
+make test-parallel RUNS=30 CPUS=1                       # Single-core VMs (no SMP races)
+./scripts/test-parallel.sh -v                           # Verbose mode (show failures)
+./scripts/test-parallel.sh -p "panic"                   # Custom pattern (look for panics)
+./scripts/test-parallel.sh -s /tmp/cottage-failures     # Save failure logs to /tmp/cottage-failures
 ```
 
 **Interpreting results:**

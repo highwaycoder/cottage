@@ -27,6 +27,7 @@ PARALLEL_JOBS=""  # Auto-detect if not specified
 MEMORY_MB=512
 ISO_PATH="cottage.iso"
 OVMF_PATH="ovmf/OVMF.fd"
+SAVE_FAILURES=""  # Directory to save failure logs
 
 # Colors for output
 RED='\033[0;31m'
@@ -49,6 +50,7 @@ Options:
   -p, --pattern STR     Success pattern to grep for (default: "$SUCCESS_PATTERN")
   -m, --memory MB       Memory per VM in MB (default: $MEMORY_MB)
   -i, --iso PATH        Path to ISO file (default: $ISO_PATH)
+  -s, --save-failures DIR  Save failure logs to directory
   -v, --verbose         Show output from each test
   -q, --quiet           Minimal output (just final stats)
   -h, --help            Show this help message
@@ -90,6 +92,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -i|--iso)
             ISO_PATH="$2"
+            shift 2
+            ;;
+        -s|--save-failures)
+            SAVE_FAILURES="$2"
             shift 2
             ;;
         -v|--verbose)
@@ -190,12 +196,22 @@ run_single_test() {
             echo "  Last output:"
             tail -5 "$output_file" 2>/dev/null | sed 's/^/    /'
         fi
+        # Save failure log if requested
+        if [[ -n "$SAVE_FAILURES" ]]; then
+            cp "$output_file" "$SAVE_FAILURES/fail_$test_num.log"
+        fi
     fi
 }
 
 export -f run_single_test
 export RESULTS_DIR TIMEOUT_SECS OVMF_PATH ISO_PATH MEMORY_MB CPUS_PER_VM
-export SUCCESS_PATTERN VERBOSE RED GREEN NC
+export SUCCESS_PATTERN VERBOSE SAVE_FAILURES RED GREEN NC
+
+# Create save directory if specified
+if [[ -n "$SAVE_FAILURES" ]]; then
+    mkdir -p "$SAVE_FAILURES"
+    echo "Failure logs will be saved to: $SAVE_FAILURES"
+fi
 
 # Run tests in parallel
 if [[ "$QUIET" != "true" ]]; then

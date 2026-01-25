@@ -64,34 +64,67 @@ void lapic_send_ipi(uint8_t lapic_id, uint8_t vector)
 
 void lapic_timer_calibrate(local_cpu_t* local_cpu)
 {
-    klog("lapic", "Calibrating lapic timer for CPU %d", local_cpu->cpu_number);
+    klog("lapic", "Calibrating lapic timer for CPU %d using HPET", local_cpu->cpu_number);
+
+    // HPET must be initialized before we can calibrate
+    if (!have_hpet) {
+        klog("lapic", "WARNING: HPET not available, using fallback 1GHz");
+        local_cpu->lapic_timer_freq = 1000000000UL;
+        return;
+    }
+
     lapic_timer_stop();
-    uint64_t samples = 0xfffff;
-    lapic_write(LAPIC_REG_TIMER, (1 << 16) | 0xff); // vector 0xff, masked
-    lapic_write(LAPIC_REG_TIMER_DIV, 0b1011);  // Use same divisor as oneshot
 
-    pit_set_reload_value(0xffff);
+    // Number of LAPIC ticks to count down - larger = more accurate but slower
+    uint64_t lapic_samples = 0xfffff;
 
-    uint64_t initial_pit_tick = pit_get_current_count();
+    // Configure LAPIC timer: masked (bit 16), vector 0xff (unused since masked)
+    lapic_write(LAPIC_REG_TIMER, (1 << 16) | 0xff);
+    lapic_write(LAPIC_REG_TIMER_DIV, 0b1011);  // Divide by 1
 
-    klog("lapic", "Waiting for %u timer ticks", samples);
+    // Read HPET counter before starting LAPIC timer
+    uint64_t hpet_start = get_ticks();
 
-    lapic_write(LAPIC_REG_TIMER_INITCNT, (uint32_t)samples);
+    // Start LAPIC countdown
+    lapic_write(LAPIC_REG_TIMER_INITCNT, (uint32_t)lapic_samples);
 
     // Spin until LAPIC timer counts down to 0
-    // Note: Don't add logging here - it would slow down calibration
-    // and cause the measured frequency to be wrong
-    while(lapic_read(LAPIC_REG_TIMER_CURCNT) != 0)
+    while (lapic_read(LAPIC_REG_TIMER_CURCNT) != 0)
     {
         asm volatile("pause" ::: "memory");
     }
 
-    uint64_t final_pit_tick = (uint64_t) pit_get_current_count();
+    // Read HPET counter after LAPIC finished
+    uint64_t hpet_end = get_ticks();
+    uint64_t hpet_elapsed = hpet_end - hpet_start;
 
-    uint64_t pit_ticks = initial_pit_tick - final_pit_tick;
+    // Avoid divide by zero (shouldn't happen with working HPET)
+    if (hpet_elapsed == 0) {
+        klog("lapic", "WARNING: hpet_elapsed=0, using fallback 1GHz");
+        local_cpu->lapic_timer_freq = 1000000000UL;
+        lapic_timer_stop();
+        return;
+    }
 
-    local_cpu->lapic_timer_freq = (samples / pit_ticks) * PIT_DIVIDEND;
-    
+    // Calculate LAPIC frequency:
+    // lapic_samples ticks took hpet_elapsed HPET ticks
+    // LAPIC freq = lapic_samples / (hpet_elapsed / hpet_freq)
+    //            = (lapic_samples * hpet_freq) / hpet_elapsed
+    uint64_t hpet_freq = get_ticks_per_second();
+    local_cpu->lapic_timer_freq = (lapic_samples * hpet_freq) / hpet_elapsed;
+
+    klog("lapic", "Calibration: hpet_elapsed=%lu hpet_freq=%lu lapic_freq=%lu",
+         hpet_elapsed, hpet_freq, local_cpu->lapic_timer_freq);
+
+    // Sanity check: frequency should be 1MHz - 100GHz
+    // (QEMU's emulated LAPIC can run at very high virtual frequencies)
+    if (local_cpu->lapic_timer_freq < 1000000UL ||
+        local_cpu->lapic_timer_freq > 100000000000UL) {
+        klog("lapic", "WARNING: unreasonable freq %lu, using fallback 1GHz",
+             local_cpu->lapic_timer_freq);
+        local_cpu->lapic_timer_freq = 1000000000UL;
+    }
+
     lapic_timer_stop();
 }
 

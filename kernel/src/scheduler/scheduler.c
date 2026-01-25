@@ -23,6 +23,8 @@
 // MAX_THREADS is defined in scheduler.h
 
 // variables
+_Atomic bool startup_phase_ignore_heartbeat = true; // ignore heartbeat errors until at least one kernel thread is
+                                                    // enqueued
 _Atomic bool scheduler_ready = false;
 _Atomic uint8_t scheduler_vector;
 process_t *kernel_process;
@@ -51,7 +53,7 @@ thread_t* get_next_thread(int64_t orig_i, int64_t* out_index)
     uint64_t cpu_number = cpu_get_current()->cpu_number;
     int64_t index = orig_i + 1;
 
-    while (1)
+    for (int64_t checked = 0; checked < MAX_THREADS; checked++)
     {
         // wrap-around
         if (index >= MAX_THREADS)
@@ -66,10 +68,6 @@ thread_t* get_next_thread(int64_t orig_i, int64_t* out_index)
                 return t;  // Return the actual thread pointer we locked
             }
         }
-
-        // only allow looping through the full queue once
-        if (index == orig_i)
-            break;
 
         index++;
     }
@@ -146,7 +144,7 @@ void scheduler_isr(__attribute__((unused)) uint32_t num, __attribute__((unused))
         set_kernel_gs_base((uint64_t)&cpu->cpu_number);
         cpu->last_run_queue_index = 0;
         atomic_store(&cpu->is_idle, true);
-        if (atomic_load(&waiting_event_count) == 0 && atomic_load(&working_cpus) == 0)
+        if (atomic_load(&waiting_event_count) == 0 && atomic_load(&working_cpus) == 0 && !startup_phase_ignore_heartbeat)
         {
             panic("Event heartbeat has flatlined :(");
         }
@@ -357,6 +355,9 @@ bool enqueue_thread(thread_t *thread, bool by_signal)
             }
 
             // we did manage to enqueue this thread
+            startup_phase_ignore_heartbeat = false; // we have enqueued at least one thread
+                                                    // FIXME: performance impact of this seems unnecessarily high, maybe
+                                                    // we could find a better place to set this?
             return true;
         }
     }

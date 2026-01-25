@@ -110,7 +110,7 @@ void* inner_alloc(size_t count, size_t limit)
             p++;
             if (p == count) {
                 size_t page = last_used_index - count;
-                for(size_t i = 0; i < last_used_index; i++)
+                for(size_t i = page; i < page + count; i++)
                 {
                     bitmap_setbit(i);
                 }
