@@ -42,6 +42,31 @@ For automated testing or debugging, use `make test-headless TIMEOUT=<seconds>`:
 
 Debug build: `COTTAGE_DEBUG=1 make all`
 
+### Parallel Testing for Race Conditions
+
+**When to use parallel testing:**
+- Debugging intermittent failures ("works sometimes", "fails randomly")
+- Working on scheduler, SMP, or locking code
+- After fixing a race condition, to verify the fix is effective
+- Establishing a baseline failure rate before/after changes
+
+**How to run:**
+```bash
+make test-parallel                        # 20 runs, auto-detect parallelism
+make test-parallel RUNS=50                # More runs for better statistics
+make test-parallel RUNS=30 CPUS=1         # Single-core VMs (no SMP races)
+./scripts/test-parallel.sh -v             # Verbose mode (show failures)
+./scripts/test-parallel.sh -p "panic"     # Custom pattern (look for panics)
+```
+
+**Interpreting results:**
+- **95-100%**: System is stable for this workload
+- **80-95%**: Intermittent race condition present
+- **<80%**: Significant stability issue or test environment problem
+- Compare single-core (`CPUS=1`) vs dual-core (`CPUS=2`) to isolate SMP-specific races
+
+**Important:** The script auto-detects parallelism to avoid overcommitting host CPUs. Running too many VMs causes host contention which produces misleading failure rates.
+
 The Makefile auto-detects CPU cores for parallel compilation. Override with `make JOBS=4` if needed.
 
 ## Architecture
