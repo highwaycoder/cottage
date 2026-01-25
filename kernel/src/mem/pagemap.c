@@ -183,8 +183,15 @@ pagemap_t new_pagemap()
 
     // import higher half from kernel pagemap
     uint64_t* p1 = (uint64_t*)((uint64_t)top_level + HIGHER_HALF);
-    uint64_t* p2 = g_kernel_pagemap.top_level + HIGHER_HALF;
+    uint64_t* p2 = (uint64_t*)((uint64_t)g_kernel_pagemap.top_level + HIGHER_HALF);
 
+    // Zero the lower half first (user space)
+    for(uint64_t i = 0; i < 256; i++)
+    {
+        p1[i] = 0;
+    }
+
+    // Copy higher half from kernel pagemap
     for(uint64_t i = 256; i < 512; i++)
     {
         p1[i] = p2[i];

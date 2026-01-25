@@ -33,12 +33,17 @@ void hpet_init()
     
     klog("timer", "Reading HPET table at %x", hpet_table);
 
-    hpet = (hpet_t*) hpet_table->address;
-    
-    klog("timer", "Found HPET memory region at %x", hpet);
+    uint64_t hpet_phys = hpet_table->address;
 
-    // identity map the HPET table into virtual memory
-    map_page(&g_kernel_pagemap, (uint64_t)hpet, (uint64_t)hpet, PTE_FLAG_PRESENT | PTE_FLAG_WRITABLE);
+    klog("timer", "Found HPET memory region at phys %lx", hpet_phys);
+
+    // Map HPET in the higher half so it's shared with all pagemaps
+    // (identity mapping would put it in the lower half which isn't copied to user pagemaps)
+    uint64_t hpet_virt = hpet_phys + HIGHER_HALF;
+    map_page(&g_kernel_pagemap, hpet_virt, hpet_phys, PTE_FLAG_PRESENT | PTE_FLAG_WRITABLE);
+    hpet = (hpet_t*)hpet_virt;
+
+    klog("timer", "HPET mapped at virt %lx", hpet_virt);
 
     // start the timer running, and enable timer interrupts
     hpet->general_config = 1;

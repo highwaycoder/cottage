@@ -49,8 +49,6 @@ NO_THREAD_SAFETY_ANALYSIS
 thread_t* get_next_thread(int64_t orig_i, int64_t* out_index)
 {
     uint64_t cpu_number = cpu_get_current()->cpu_number;
-    // Use klog_unlocked in ISR context to avoid deadlock if main thread holds klog_lock
-    klog_unlocked("sched", "Getting next thread for cpu %d", cpu_number);
     int64_t index = orig_i + 1;
 
     while (1)
@@ -118,10 +116,6 @@ void scheduler_isr(__attribute__((unused)) uint32_t num, __attribute__((unused))
     int64_t new_index;
     thread_t *new_thread = get_next_thread(cpu->last_run_queue_index, &new_index);
 
-    klog_unlocked("sched", "Getting ready to try to run %d on %d", new_index, cpu->cpu_number);
-
-    klog_unlocked("sched", "current_thread=%x, new_index=%d, new_thread=%x", current_thread, new_index, new_thread);
-
     if (current_thread != 0)
     {
         lock_release(&current_thread->yield_await);
@@ -147,7 +141,6 @@ void scheduler_isr(__attribute__((unused)) uint32_t num, __attribute__((unused))
 
     if (new_thread == NULL)
     {
-        klog_unlocked("sched", "new_thread == NULL (no runnable thread)");
         lapic_eoi();
         set_gs_base((uint64_t)&cpu->cpu_number);
         set_kernel_gs_base((uint64_t)&cpu->cpu_number);
@@ -180,13 +173,13 @@ void scheduler_isr(__attribute__((unused)) uint32_t num, __attribute__((unused))
         set_gs_base((uint64_t)current_thread);
         set_kernel_gs_base((uint64_t)current_thread);
     }
-    klog_unlocked("sched", "set current thread to %p", current_thread);
     set_fs_base(current_thread->fs_base);
 
     cpu->tss.ist3 = current_thread->pf_stack;
 
-    if (read_cr3() != current_thread->cr3)
+    if (read_cr3() != current_thread->cr3) {
         write_cr3(current_thread->cr3);
+    }
 
     fpu_restore(current_thread->fpu_storage);
 
@@ -196,14 +189,6 @@ void scheduler_isr(__attribute__((unused)) uint32_t num, __attribute__((unused))
     lapic_timer_oneshot(cpu, scheduler_vector, current_thread->timeslice);
 
     cpu_status_t* new_cpu_state = &current_thread->cpu_state;
-    if (new_cpu_state->cs == USER_CODE_SEGMENT)
-    {
-        // todo: dispatch a signal?
-        klog_unlocked("sched", "Should dispatch signal but not yet implemented");
-    }
-
-    klog_unlocked("sched", "new_cpu_state = %lp", new_cpu_state);
-    dump_local_cpu(cpu);
 
     // Note: We do NOT do swapgs here before iretq, even when returning to user mode.
     // The scheduler directly sets GS_BASE and KERNEL_GS_BASE via MSR writes above

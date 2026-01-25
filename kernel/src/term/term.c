@@ -36,13 +36,15 @@ static void term_write_unlocked(const char *string, size_t count)
     print_serial("\r"); // add a carriage return after each write on serial
     if(have_smp)
     {
-        asm volatile("cli" ::: "memory");
-        // I'm *worried* that doing the flush on any core other than zero could result in a race,
-        // but I'm leaving it commented out and trusting my locks for now...
-        //uint64_t cpuid = cpu_get_current()->cpu_number;
-        //if (cpuid == 0)
-            ctx->double_buffer_flush(ctx);
-        asm volatile("sti" ::: "memory");
+        // Save and restore interrupt state rather than unconditionally enabling
+        // This allows klog_unlocked to work safely from ISR context
+        uint64_t flags;
+        asm volatile("pushfq; pop %0; cli" : "=r"(flags) :: "memory");
+        ctx->double_buffer_flush(ctx);
+        // Only restore IF if it was previously set
+        if (flags & (1 << 9)) {
+            asm volatile("sti" ::: "memory");
+        }
     }
     else
     {
