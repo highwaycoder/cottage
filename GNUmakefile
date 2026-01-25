@@ -52,6 +52,17 @@ test: run-uefi
 stress-test:
 	./scripts/stress-test.sh $(ITERATIONS) $(TIMEOUT)
 
+# parallel boot test for race condition debugging
+# Usage: make test-parallel RUNS=50 CPUS=2 PARALLEL=6
+# If PARALLEL not specified, auto-detects based on host CPUs / CPUS per VM
+.PHONY: test-parallel
+test-parallel: ovmf $(IMAGE_NAME).iso
+ifdef PARALLEL
+	./scripts/test-parallel.sh -n $(or $(RUNS),20) -c $(or $(CPUS),2) -j $(PARALLEL)
+else
+	./scripts/test-parallel.sh -n $(or $(RUNS),20) -c $(or $(CPUS),2)
+endif
+
 # headless test for CI/automated testing (no GUI window)
 # Usage: make test-headless TIMEOUT=30  (runs for 30 seconds then exits)
 # Without TIMEOUT, runs until crash or manual termination
