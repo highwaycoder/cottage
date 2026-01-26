@@ -252,11 +252,13 @@ bool scheduler_dequeue_thread(thread_t* thread)
         return true;
     }
 
+    thread_t* target = thread; // save original
     for(uint64_t i = 0; i < MAX_THREADS; i++)
     {
-        if(atomic_compare_exchange_strong(&scheduler_running_queue[i], &thread, NULL))
+        thread_t* expected = target;
+        if(atomic_compare_exchange_strong(&scheduler_running_queue[i], &expected, NULL))
         {
-            atomic_store(&thread->is_in_queue, false);
+            atomic_store(&target->is_in_queue, false);
             return true;
         }
     }

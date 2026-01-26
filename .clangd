@@ -1,4 +1,11 @@
 CompileFlags:
-Add:
-- -Ikernel/src
-- -Ikernel/src/lai/include
+  Add:
+    - -xc
+    - -Ikernel/include
+    - -Ikernel/src
+    - -Ikernel/src/lai/include
+    - -std=gnu11
+    - -ffreestanding
+    - -m64
+    - -Wall
+    - -Wextra

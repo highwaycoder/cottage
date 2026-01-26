@@ -231,3 +231,23 @@ void lock_assert_held(lock_t* lock) ASSERT_CAPABILITY(lock);
     for (lock_t* _guard_lock = (lock_acquire(lock), (lock)); \
          _guard_lock; \
          lock_release(_guard_lock), _guard_lock = NULL)
+
+// ============================================================================
+// Interrupt-Safe Lock Macros
+// ============================================================================
+// Use these when the lock may be acquired by both normal code and interrupt
+// handlers. They disable interrupts before acquiring to prevent deadlock.
+//
+// Usage:
+//   uint64_t flags;
+//   lock_acquire_irqsave(&my_lock, flags);
+//   // ... critical section ...
+//   lock_release_irqrestore(&my_lock, flags);
+
+#include <cpu/cpu.h>
+
+#define lock_acquire_irqsave(lock, flags) \
+    do { (flags) = irq_save_and_disable(); lock_acquire(lock); } while(0)
+
+#define lock_release_irqrestore(lock, flags) \
+    do { lock_release(lock); irq_restore(flags); } while(0)

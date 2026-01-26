@@ -93,6 +93,35 @@ static inline bool cpu_interrupt_state()
     return (f & (1 << 9)) != 0;
 }
 
+// Save current interrupt state (RFLAGS) and disable interrupts.
+// Returns the saved flags - pass to irq_restore() to restore previous state.
+static inline uint64_t irq_save_and_disable(void)
+{
+    uint64_t flags;
+    asm volatile (
+        "pushfq\n\t"
+        "pop %0\n\t"
+        "cli"
+        : "=r" (flags)
+        :
+        : "memory"
+    );
+    return flags;
+}
+
+// Restore interrupt state from previously saved flags.
+// Use with irq_save_and_disable() - don't just pass arbitrary values.
+static inline void irq_restore(uint64_t flags)
+{
+    asm volatile (
+        "push %0\n\t"
+        "popfq"
+        :
+        : "r" (flags)
+        : "memory", "cc"
+    );
+}
+
 static inline uint64_t cpu_rdtsc()
 {
     uint32_t a = 0;

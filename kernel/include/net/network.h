@@ -3,6 +3,7 @@
 #include <sys/types.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <scheduler/semaphore.h>
 
 // flags
 // is the device enabled?
@@ -27,7 +28,8 @@ typedef struct
     _Atomic uint32_t head; // consumer reads from here
     _Atomic uint32_t tail; // producer writes here
 
-    // TODO: signaling
+    // signaling
+    semaphore_t packet_ready;
 } packet_queue_t;
 
 #define NET_RECV_BUF_SLOT_SIZE 2048
@@ -64,3 +66,6 @@ bool net_init();
 ssize_t net_write(const char* devid, uint8_t* ptr, size_t len);
 uint8_t* net_get_mac(const char* devid);
 void packet_queue_init(packet_queue_t* queue, uint32_t slot_count);
+
+// the kernel network thread, defined in network.c for now
+void knetwork_thread(void* arg);

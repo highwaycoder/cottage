@@ -10,6 +10,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <interrupt/apic.h>
+#include <scheduler/semaphore.h>
 
 network_device_t dev;
 
@@ -234,6 +235,8 @@ void e1000_interrupt_handler(uint32_t num, cpu_status_t* status)
 
             // Advance tail
             atomic_store(&dev.recv_queue.tail, next_tail);
+
+            sem_signal(&dev.recv_queue.packet_ready);
 
             klog("e1000", "RX packet: %d bytes to slot %d", packet_len, tail);
         } else {
