@@ -273,7 +273,7 @@ void kmain_thread(void* arg)
     klog("main", "Enumerating PCI devices");
     pci_init();
     klog("main", "PCI devices enumerated");
-    
+
     // mount -t tmpfs /
     if(!fs_mount(vfs_root, "", "/", FS_TMPFS))
     {

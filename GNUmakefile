@@ -76,8 +76,14 @@ endif
 
 QEMU_FLAGS := -d cpu_reset -smp cpus=1 -M q35 -m 2G -serial stdio -action panic=none
 
-# Networking: e1000e NIC with user-mode networking (e1000e supports MSI)
+# Networking: e1000e NIC (e1000e supports MSI)
+# Use TAP=1 for host-to-guest connectivity (requires: sudo ./scripts/setup-tap.sh)
+# Default is user-mode networking (guest can reach out, but host can't ping in)
+ifdef TAP
+QEMU_FLAGS += -netdev tap,id=net0,ifname=tap0,script=no,downscript=no -device e1000e,netdev=net0
+else
 QEMU_FLAGS += -netdev user,id=net0 -device e1000e,netdev=net0
+endif
 
 # Packet capture: use PCAP=1 to dump packets to packets.pcap
 # Usage: make run-uefi PCAP=1

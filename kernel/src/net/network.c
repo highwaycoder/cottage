@@ -10,6 +10,73 @@
 #include <scheduler/semaphore.h>
 #include <scheduler/scheduler.h>
 
+// Internet checksum (RFC 1071)
+// Works for IPv4 header, ICMP, UDP, TCP, etc.
+uint16_t net_checksum(void* data, uint16_t len)
+{
+    uint32_t sum = 0;
+    uint16_t* ptr = (uint16_t*)data;
+
+    while (len > 1)
+    {
+        sum += *ptr++;
+        len -= 2;
+    }
+
+    // Handle odd byte
+    if (len == 1)
+    {
+        sum += *(uint8_t*)ptr;
+    }
+
+    // Fold 32-bit sum to 16 bits
+    while (sum >> 16)
+    {
+        sum = (sum & 0xFFFF) + (sum >> 16);
+    }
+
+    return (uint16_t)~sum;
+}
+
+// Build Ethernet header
+uint16_t eth_build_header(uint8_t* buf, uint8_t* dest_mac, uint8_t* src_mac, uint16_t ethertype)
+{
+    memcpy(&buf[0], dest_mac, 6);    // Destination MAC
+    memcpy(&buf[6], src_mac, 6);     // Source MAC
+    buf[12] = (ethertype >> 8) & 0xFF;  // EtherType high byte
+    buf[13] = ethertype & 0xFF;         // EtherType low byte
+    return ETH_HEADER_LEN;
+}
+
+// Build IPv4 header (no options, 20 bytes)
+uint16_t ipv4_build_header(uint8_t* buf, uint8_t* src_ip, uint8_t* dest_ip,
+                           uint8_t protocol, uint16_t payload_len, uint8_t ttl)
+{
+    uint16_t total_len = IPV4_HEADER_LEN + payload_len;
+
+    buf[0] = 0x45;                      // Version 4, IHL 5 (20 bytes)
+    buf[1] = 0x00;                      // TOS
+    buf[2] = (total_len >> 8) & 0xFF;   // Total length high
+    buf[3] = total_len & 0xFF;          // Total length low
+    buf[4] = 0x00;                      // Identification high
+    buf[5] = 0x00;                      // Identification low
+    buf[6] = 0x40;                      // Flags: Don't Fragment, frag offset high
+    buf[7] = 0x00;                      // Fragment offset low
+    buf[8] = ttl;                       // TTL
+    buf[9] = protocol;                  // Protocol
+    buf[10] = 0x00;                     // Checksum high (placeholder)
+    buf[11] = 0x00;                     // Checksum low (placeholder)
+    memcpy(&buf[12], src_ip, 4);        // Source IP
+    memcpy(&buf[16], dest_ip, 4);       // Destination IP
+
+    // Calculate and insert checksum
+    uint16_t cksum = net_checksum(buf, IPV4_HEADER_LEN);
+    buf[10] = (cksum >> 8) & 0xFF;
+    buf[11] = cksum & 0xFF;
+
+    return IPV4_HEADER_LEN;
+}
+
 static network_device_descriptor_t* devices = NULL;
 static size_t device_count;
 
@@ -28,7 +95,7 @@ uint8_t* net_get_mac(const char* devid)
 
 void packet_queue_init(packet_queue_t* queue, uint32_t slot_count)
 {
-    queue->data = pmm_alloc((slot_count * NET_RECV_BUF_SLOT_SIZE) / PAGE_SIZE);
+    queue->data = (uint8_t*)((uintptr_t)pmm_alloc((slot_count * NET_RECV_BUF_SLOT_SIZE) / PAGE_SIZE) + HIGHER_HALF);
     queue->meta = malloc(slot_count * sizeof(packet_meta_t));
     queue->slot_count = slot_count;
     queue->slot_size = NET_RECV_BUF_SLOT_SIZE;
@@ -93,7 +160,6 @@ void knetwork_thread(void* arg)
     while (1)
     {
         // Block until a packet is available
-        klog("net", "about to sem_wait on %p", &queue->packet_ready);
         sem_wait(&queue->packet_ready);
 
         // Dequeue the packet
@@ -117,14 +183,21 @@ void knetwork_thread(void* arg)
         uint32_t next_head = (head + 1) % queue->slot_count;
         atomic_store(&queue->head, next_head);
 
-        // Process the packet - for now just log it
         // EtherType is at bytes 12-13 (big-endian)
         uint16_t ethertype = (packet_data[12] << 8) | packet_data[13];
-        klog("net", "RX: %d bytes, EtherType=0x%x", packet_len, ethertype);
 
-        // TODO: dispatch to protocol handlers based on ethertype
-        // 0x0806 = ARP
-        // 0x0800 = IPv4
-        // 0x86DD = IPv6
+        // Dispatch to protocol handler
+        switch (ethertype)
+        {
+            case 0x0806:  // ARP
+                net_handle_arp(device, packet_data, packet_len);
+                break;
+            case 0x0800:  // IPv4
+                net_handle_ipv4(device, packet_data, packet_len);
+                break;
+            default:
+                klog("net", "Unknown EtherType 0x%x, dropping %d byte packet", ethertype, packet_len);
+                break;
+        }
     }
 }

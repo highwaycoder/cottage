@@ -47,6 +47,9 @@ typedef struct
 
     // MAC address
     uint8_t mac[6];
+
+    // IPv4 address (single IPv4 address per device, *for now*)
+    uint8_t ip4[4];
 } network_device_t;
 
 typedef struct
@@ -69,3 +72,27 @@ void packet_queue_init(packet_queue_t* queue, uint32_t slot_count);
 
 // the kernel network thread, defined in network.c for now
 void knetwork_thread(void* arg);
+
+// Protocol handlers
+void net_handle_arp(network_device_t* device, uint8_t* packet, uint16_t len);
+void net_handle_ipv4(network_device_t* device, uint8_t* packet, uint16_t len);
+
+// Packet building helpers
+// All return the number of bytes written (header size)
+
+// Build Ethernet header at buf[0..13]
+// Returns 14 (ETH_HEADER_LEN)
+uint16_t eth_build_header(uint8_t* buf, uint8_t* dest_mac, uint8_t* src_mac, uint16_t ethertype);
+
+// Build IPv4 header at buf[0..19] (no options)
+// Checksum is calculated automatically
+// Returns 20 (minimum IPv4 header size)
+uint16_t ipv4_build_header(uint8_t* buf, uint8_t* src_ip, uint8_t* dest_ip,
+                           uint8_t protocol, uint16_t payload_len, uint8_t ttl);
+
+// Internet checksum (RFC 1071) - used for IPv4 header, ICMP, UDP, etc.
+uint16_t net_checksum(void* data, uint16_t len);
+
+// Header sizes
+#define ETH_HEADER_LEN  14
+#define IPV4_HEADER_LEN 20  // Minimum, without options

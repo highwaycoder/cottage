@@ -77,7 +77,7 @@ void rx_init()
     e1000_rx_desc* descs = (e1000_rx_desc*) rx_ptr;
     for(uint16_t i = 0; i < E1000_NUM_RX_DESC; i++)
     {
-        rx_descs[i] = (e1000_rx_desc*) ((uint8_t*) descs + i * 16);
+        rx_descs[i] = (e1000_rx_desc*) ((uint8_t*) descs + i * 16 + HIGHER_HALF);
         rx_descs[i]->addr = (uint64_t)(uint8_t *) pmm_alloc(((8192 + 16) / 0x1000) + 1);
         rx_descs[i]->status = 0;
     }
@@ -99,7 +99,7 @@ void tx_init()
     e1000_tx_desc* descs = (e1000_tx_desc*) tx_ptr;
     for(uint16_t i = 0; i < E1000_NUM_TX_DESC; i++)
     {
-        tx_descs[i] = (e1000_tx_desc*) ((uint8_t*)descs + i * 16);
+        tx_descs[i] = (e1000_tx_desc*) ((uint8_t*)descs + i * 16 + HIGHER_HALF);
         // allocate one page for tx buffer
         tx_descs[i]->addr = (uint64_t)pmm_alloc(1);
         tx_descs[i]->cmd = 0;
@@ -158,7 +158,7 @@ void e1000_init(uint64_t mmio_address, uint16_t bus, uint16_t device, uint16_t f
     rx_ptr = pmm_alloc(((sizeof(e1000_rx_desc) * E1000_NUM_RX_DESC + 16) / 0x1000) + 1);
     tx_ptr = pmm_alloc(((sizeof(e1000_tx_desc) * E1000_NUM_TX_DESC + 16) / 0x1000) + 1);
 
-    g_mmio_address = mmio_address;
+    g_mmio_address = mmio_address + HIGHER_HALF;
 
     eeprom_exists = detect_eeprom();
     read_mac_address();
@@ -195,6 +195,7 @@ void e1000_init(uint64_t mmio_address, uint16_t bus, uint16_t device, uint16_t f
         .name = "e1000",
         .transmit = e1000_send,
         .flags = NET_DEV_STATUS_ENABLE | NET_DEV_STATUS_LINK | NET_DEV_STATUS_LINK_READY,
+        .ip4 = {10, 0, 2, 15},
     }), sizeof(network_device_t));
     memcpy(&dev.mac, mac_address, 6);
 
@@ -215,7 +216,9 @@ void e1000_init(uint64_t mmio_address, uint16_t bus, uint16_t device, uint16_t f
 
 void e1000_interrupt_handler(uint32_t num, cpu_status_t* status)
 {
+    // NOTE: Cannot call klog() from ISR - would deadlock if interrupted code holds klog_lock
     read_command(0xC0); // ICR read clears the interrupt
+    uint16_t new_tail = rx_cur;
     while (rx_descs[rx_cur]->status & 1)
     {
         uint8_t* packet_data = (uint8_t*)(rx_descs[rx_cur]->addr + HIGHER_HALF);
@@ -237,17 +240,15 @@ void e1000_interrupt_handler(uint32_t num, cpu_status_t* status)
             atomic_store(&dev.recv_queue.tail, next_tail);
 
             sem_signal(&dev.recv_queue.packet_ready);
-
-            klog("e1000", "RX packet: %d bytes to slot %d", packet_len, tail);
         } else {
-            klog("e1000", "RX packet dropped: queue full");
+            // Packet dropped: queue full (can't log from ISR)
         }
 
         rx_descs[rx_cur]->status = 0;
         rx_cur = (rx_cur + 1) % E1000_NUM_RX_DESC;
     }
 
-    write_command(REG_RXDESCTAIL, rx_cur);
+    write_command(REG_RXDESCTAIL, new_tail);
     lapic_eoi();
 }
 

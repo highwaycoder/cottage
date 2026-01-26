@@ -93,7 +93,9 @@ void sleep(uint32_t millis)
 
 uint64_t get_ticks_per_second()
 {
-    return 1250000000000000 / ((hpet->capabilities >> 32) & 0xffffffff);
+    // HPET capabilities bits 63:32 = period in femtoseconds (10^-15 seconds)
+    // ticks_per_second = 10^15 femtoseconds/second / period_femtoseconds
+    return 1000000000000000ULL / ((hpet->capabilities >> 32) & 0xffffffff);
 }
 
 uint64_t get_ticks()

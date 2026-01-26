@@ -104,9 +104,13 @@ void scheduler_init()
 // - Locks are acquired by get_next_thread() and released here
 // - yield_await locks are acquired elsewhere and released here
 // - The lock flow crosses function boundaries intentionally
+volatile int sched_isr_count = 0;  // Global counter visible to debugger
+
 NO_THREAD_SAFETY_ANALYSIS
 void scheduler_isr(__attribute__((unused)) uint32_t num, __attribute__((unused)) cpu_status_t *status)
 {
+    sched_isr_count++;  // Increment before any complex code
+    // NOTE: Cannot call klog() from ISR - would deadlock if interrupted code holds klog_lock
     lapic_timer_stop();
     local_cpu_t *cpu = cpu_get_current();
     atomic_store(&cpu->is_idle, false);
@@ -238,6 +242,9 @@ void scheduler_await()
     lapic_timer_oneshot(local_cpu, scheduler_vector, 20000);
     // enable interrupts and run a HLT loop until the interrupt fires
     asm volatile("sti" ::: "memory");
+    uint64_t flags;
+    asm volatile("pushfq; popq %0" : "=r"(flags));
+    klog("sched", "In scheduler_await, IF=%d", (flags >> 9) & 1);
     for (;;)
     {
         asm volatile("hlt" ::: "memory");

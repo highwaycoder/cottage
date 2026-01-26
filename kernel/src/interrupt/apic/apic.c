@@ -27,8 +27,8 @@ uint32_t lapic_read(uint32_t reg)
    if (lapic_base == 0)
    {
         lapic_base = (rdmsr(0x1b) & 0xfffff000) + HIGHER_HALF;
-   } 
-   return mmin((void*)(lapic_base + reg));
+   }
+   return mmin((uint32_t*)(lapic_base + reg));
 }
 
 void lapic_write (uint32_t reg, uint32_t val)
@@ -36,8 +36,9 @@ void lapic_write (uint32_t reg, uint32_t val)
    if (lapic_base == 0)
    {
         lapic_base = (rdmsr(0x1b) & 0xfffff000) + HIGHER_HALF;
-   } 
-   return mmout((void*)(lapic_base + reg), val);
+        klog("lapic", "LAPIC base = %p", (void*)lapic_base);
+   }
+   mmout((uint32_t*)(lapic_base + reg), val);
 }
 
 void lapic_eoi()
@@ -137,13 +138,16 @@ void lapic_timer_oneshot(local_cpu_t* local_cpu, uint8_t vector, uint64_t micros
     lapic_write(LAPIC_REG_TIMER, vector);
     lapic_write(LAPIC_REG_TIMER_DIV, 0b1011);
     lapic_write(LAPIC_REG_TIMER_INITCNT, (uint32_t)ticks);
+
+    // Timer is now set - debug logging removed for performance
+    (void)lapic_read(LAPIC_REG_TIMER);  // Keep read to verify it works
 }
 
 uint32_t io_apic_read(uint64_t io_apic, uint32_t reg)
 {
     uint64_t base = ((uint64_t)madt_io_apics[io_apic].address) + HIGHER_HALF;
     mmout((uint32_t*)base, reg);
-    return mmin((uint32_t*) base + 16);
+    return mmin((uint32_t*)(base + 16));  // Data register at offset 0x10 (16 bytes)
 }
 
 void io_apic_write(uint64_t io_apic, uint32_t reg, uint32_t val)
