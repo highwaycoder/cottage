@@ -2,6 +2,7 @@
 
 #include <acpispec/tables.h>
 #include <stdint.h>
+#include <sys/types.h>
 #include <stddef.h>
 
 typedef enum {
@@ -89,3 +90,9 @@ pci_bar_t pci_get_bar(uint32_t* bar0, int bar_num, uint16_t bus, uint16_t device
 // I/O helper functions
 void pci_enable_mmio(uint16_t bus, uint16_t device, uint16_t function);
 void pci_become_bus_master(uint16_t bus, uint16_t device, uint16_t function);
+
+// capability helper functions
+uint8_t pci_find_capability(uint16_t bus, uint16_t dev, uint16_t func, uint8_t cap_id);
+
+// MSI setup
+ssize_t pci_enable_msi(uint16_t bus, uint16_t dev, uint16_t func, uint8_t vector, uint8_t lapic_id);

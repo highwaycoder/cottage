@@ -76,8 +76,8 @@ endif
 
 QEMU_FLAGS := -d cpu_reset -smp cpus=1 -M q35 -m 2G -serial stdio -action panic=none
 
-# Networking: e1000 NIC with user-mode networking
-QEMU_FLAGS += -netdev user,id=net0 -device e1000,netdev=net0
+# Networking: e1000e NIC with user-mode networking (e1000e supports MSI)
+QEMU_FLAGS += -netdev user,id=net0 -device e1000e,netdev=net0
 
 # Packet capture: use PCAP=1 to dump packets to packets.pcap
 # Usage: make run-uefi PCAP=1

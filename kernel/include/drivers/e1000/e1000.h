@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <interrupt/idt.h>
 
 // NOTE: some QEMU versions reportedly use device 0x100E
 // rather than 10D3 - they are similar devices, perhaps even compatible,
@@ -107,6 +108,7 @@ typedef struct {
     volatile uint16_t special;
 } __attribute__((packed)) e1000_tx_desc;
 
-void e1000_init(uint64_t mmio_address);
+void e1000_init(uint64_t mmio_address, uint16_t bus, uint16_t device, uint16_t function);
+void e1000_interrupt_handler(uint32_t num, cpu_status_t* status);
 void set_ip(uint32_t new_ip);
 uint32_t get_ip();

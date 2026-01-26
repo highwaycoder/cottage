@@ -1,4 +1,5 @@
 #include <drivers/e1000/e1000.h>
+#include <pci/pci.h>
 #include <acpi/acpi.h>
 #include <mem/pmm.h>
 #include <klog/klog.h>
@@ -8,6 +9,7 @@
 #include <errors/errno.h>
 #include <string.h>
 #include <stdlib.h>
+#include <interrupt/apic.h>
 
 network_device_t dev;
 
@@ -27,7 +29,7 @@ e1000_tx_desc* tx_descs[E1000_NUM_TX_DESC];
 uint8_t mac_address[6];
 
 // driver internals
-static uint64_t mmio_address;
+static uint64_t g_mmio_address;
 static bool eeprom_exists;
 static uint32_t ip;
 
@@ -149,13 +151,13 @@ ssize_t e1000_send(uint8_t* data, uint16_t len)
     return len;
 }
 
-void e1000_init(uint64_t _mmio_address)
+void e1000_init(uint64_t mmio_address, uint16_t bus, uint16_t device, uint16_t function)
 {
     eeprom_exists = false;
     rx_ptr = pmm_alloc(((sizeof(e1000_rx_desc) * E1000_NUM_RX_DESC + 16) / 0x1000) + 1);
     tx_ptr = pmm_alloc(((sizeof(e1000_tx_desc) * E1000_NUM_TX_DESC + 16) / 0x1000) + 1);
 
-    mmio_address = _mmio_address;
+    g_mmio_address = mmio_address;
 
     eeprom_exists = detect_eeprom();
     read_mac_address();
@@ -191,29 +193,69 @@ void e1000_init(uint64_t _mmio_address)
     memcpy(&dev, &((network_device_t) {
         .name = "e1000",
         .transmit = e1000_send,
-        .recv_buf = pmm_alloc(RECV_BUF_PAGES),
-        .recv_buf_len = 0,
-        .recv_buf_max = RECV_BUF_PAGES * PAGE_SIZE,
         .flags = NET_DEV_STATUS_ENABLE | NET_DEV_STATUS_LINK | NET_DEV_STATUS_LINK_READY,
     }), sizeof(network_device_t));
     memcpy(&dev.mac, mac_address, 6);
 
-    // recv pointer starts at the start of the recv buffer
-    dev.recv_buf_read_ptr = malloc(sizeof(uint8_t*));
-    *dev.recv_buf_read_ptr = dev.recv_buf;
+    // initialize the recv_queue structure (necessary)
+    packet_queue_init(&dev.recv_queue, 64);
+
+    // set up MSI
+    uint8_t vec = idt_allocate_vector();
+    interrupt_table[vec] = (void*)e1000_interrupt_handler;
+    pci_enable_msi(bus, device, function, vec, 0);
+
+    // Re-enable interrupts after MSI setup - clear any pending first, then set mask
+    read_command(0xC0);  // Clear pending interrupts by reading ICR
+    write_command(REG_IMASK, 0x1F6DC);  // Enable RX and other interrupts
 
     net_register_device("eth0", &dev);
 }
 
+void e1000_interrupt_handler(uint32_t num, cpu_status_t* status)
+{
+    read_command(0xC0); // ICR read clears the interrupt
+    while (rx_descs[rx_cur]->status & 1)
+    {
+        uint8_t* packet_data = (uint8_t*)(rx_descs[rx_cur]->addr + HIGHER_HALF);
+        uint16_t packet_len = rx_descs[rx_cur]->length;
+
+        uint32_t tail = atomic_load(&dev.recv_queue.tail);
+        uint32_t next_tail = (tail+1) % dev.recv_queue.slot_count;
+
+        if(next_tail != atomic_load(&dev.recv_queue.head)) {
+            // copy to slot
+            uint8_t* slot = dev.recv_queue.data + (tail * dev.recv_queue.slot_size);
+            memcpy(slot, packet_data, packet_len);
+
+            // set metadata
+            dev.recv_queue.meta[tail].length = packet_len;
+            dev.recv_queue.meta[tail].flags = 0;
+
+            // Advance tail
+            atomic_store(&dev.recv_queue.tail, next_tail);
+
+            klog("e1000", "RX packet: %d bytes to slot %d", packet_len, tail);
+        } else {
+            klog("e1000", "RX packet dropped: queue full");
+        }
+
+        rx_descs[rx_cur]->status = 0;
+        rx_cur = (rx_cur + 1) % E1000_NUM_RX_DESC;
+    }
+
+    write_command(REG_RXDESCTAIL, rx_cur);
+    lapic_eoi();
+}
 
 void write_command(uint16_t address, uint32_t value)
 {
-    *((uint32_t *)(mmio_address + address)) = value;
+    *((uint32_t *)(g_mmio_address + address)) = value;
 }
 
 uint32_t read_command(uint16_t offset)
 {
-    return *((uint32_t *)(mmio_address + offset));
+    return *((uint32_t *)(g_mmio_address + offset));
 }
 
 void read_mac_address()

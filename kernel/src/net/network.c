@@ -4,6 +4,9 @@
 #include <malloc.h>
 #include <string.h>
 #include <errors/errno.h>
+#include <mem/pmm.h>
+#include <mem/malloc.h>
+#include <stdatomic.h>
 
 static network_device_descriptor_t* devices = NULL;
 static size_t device_count;
@@ -19,6 +22,17 @@ uint8_t* net_get_mac(const char* devid)
         }
     }
     return NULL;
+}
+
+void packet_queue_init(packet_queue_t* queue, uint32_t slot_count)
+{
+    queue->data = pmm_alloc((slot_count * NET_RECV_BUF_SLOT_SIZE) / PAGE_SIZE);
+    queue->meta = malloc(slot_count * sizeof(packet_meta_t));
+    queue->slot_count = slot_count;
+    queue->slot_size = NET_RECV_BUF_SLOT_SIZE;
+
+    atomic_store(&queue->head, 0);
+    atomic_store(&queue->tail, 0);
 }
 
 void net_register_device(const char *identifier, network_device_t* device)
@@ -51,33 +65,6 @@ ssize_t net_write(const char* devid, uint8_t* ptr, size_t len)
         }
     }
     return -ENODEV;
-}
-
-// read at most <len> bytes from the device.
-// returns the number of bytes actually read
-size_t net_read(const char* devid, uint8_t* buf, size_t len)
-{
-    size_t bytes_read = 0;
-    for(size_t i = 0; i < device_count; i++)
-    {
-        if(strcmp(devices[i].identifier, devid) == 0)
-        {
-            network_device_t* dev = devices[i].device;
-            for (size_t i = 0; dev->recv_buf_len > 0 && i < len; i++)
-            {
-                memcpy(buf, *dev->recv_buf_read_ptr, 1);
-                (*dev->recv_buf_read_ptr)++;
-                // if we hit the end, wrap the pointer back around
-                if(*dev->recv_buf_read_ptr - dev->recv_buf == dev->recv_buf_len)
-                {
-                    *dev->recv_buf_read_ptr = dev->recv_buf;
-                }
-                dev->recv_buf_len--;
-                bytes_read++;
-            }
-        }
-    }
-    return bytes_read;
 }
 
 // this function is responsible for initialising the network protocol stack,

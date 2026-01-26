@@ -1,0 +1,322 @@
+make -C kernel 
+make -C init
+make[1]: Entering directory '/home/chris/Projects/cottage/kernel'
+make[1]: Entering directory '/home/chris/Projects/cottage/init'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/chris/Projects/cottage/init'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/chris/Projects/cottage/kernel'
+rm -rf iso_root
+mkdir -p iso_root
+cp -v kernel/bin/kernel init/bin/initramfs.tar \
+	limine.cfg limine/limine-bios.sys limine/limine-bios-cd.bin limine/limine-uefi-cd.bin iso_root/
+'kernel/bin/kernel' -> 'iso_root/kernel'
+'init/bin/initramfs.tar' -> 'iso_root/initramfs.tar'
+'limine.cfg' -> 'iso_root/limine.cfg'
+'limine/limine-bios.sys' -> 'iso_root/limine-bios.sys'
+'limine/limine-bios-cd.bin' -> 'iso_root/limine-bios-cd.bin'
+'limine/limine-uefi-cd.bin' -> 'iso_root/limine-uefi-cd.bin'
+mkdir -p iso_root/EFI/BOOT
+cp -v limine/BOOTX64.EFI iso_root/EFI/BOOT/
+'limine/BOOTX64.EFI' -> 'iso_root/EFI/BOOT/BOOTX64.EFI'
+cp -v limine/BOOTIA32.EFI iso_root/EFI/BOOT/
+'limine/BOOTIA32.EFI' -> 'iso_root/EFI/BOOT/BOOTIA32.EFI'
+xorriso -as mkisofs -b limine-bios-cd.bin \
+	-no-emul-boot -boot-load-size 4 -boot-info-table \
+	--efi-boot limine-uefi-cd.bin \
+	-efi-boot-part --efi-boot-image --protective-msdos-label \
+	iso_root -o cottage.iso
+./limine/limine bios-install cottage.iso
+rm -rf iso_root
+qemu-system-x86_64 -d cpu_reset -smp cpus=1 -M q35 -m 2G -serial stdio -action panic=none -netdev user,id=net0 -device e1000e,netdev=net0 -display none -bios /usr/share/ovmf/OVMF.fd -cdrom cottage.iso -boot d
+[2J[01;01H[=3h[2J[01;01H[2J[01;01H[=3h[2J[01;01H[2J[01;01H[=3h[2J[01;01HBdsDxe: loading Boot0001 "UEFI QEMU DVD-ROM QM00005 " from PciRoot(0x0)/Pci(0x1F,0x2)/Sata(0x2,0xFFFF,0x0)
+BdsDxe: starting Boot0001 "UEFI QEMU DVD-ROM QM00005 " from PciRoot(0x0)/Pci(0x1F,0x2)/Sata(0x2,0xFFFF,0x0)
+[2J[01;01H[01;01H[2J[01;01H[01;01HInitialising tty
+Switching to tty print
+[early] [main] framebuffer address=80000000ÿ width=1280ÿ height=800ÿ pitch=5120ÿ pixel_width=4ÿ
+=== Cottage v0.0.1a (snapshot release) ===
+[early] [main] Loading DTB
+[early] [main] no DTB present, wrong platform or booting in legacy mode?
+[early] [main] Making sure paging is enabled
+[early] [main] Paging mode 0 enabled
+[early] [main] Initializing PMM
+[early] [pmm] Found these memory regions:
+[early] [pmm] 	base=1000ÿ length=651264ÿ type=0
+[early] [pmm] 	base=100000ÿ length=7340032ÿ type=0
+[early] [pmm] 	base=800000ÿ length=32768ÿ type=3ÿ
+[early] [pmm] 	base=808000ÿ length=12288ÿ type=0
+[early] [pmm] 	base=80b000ÿ length=4096ÿ type=3ÿ
+[early] [pmm] 	base=80c000ÿ length=20480ÿ type=0
+[early] [pmm] 	base=811000ÿ length=978944ÿ type=3ÿ
+[early] [pmm] 	base=900000ÿ length=1966407680ÿ type=0
+[early] [pmm] 	base=75c50000ÿ length=20480ÿ type=6ÿ
+[early] [pmm] 	base=75c55000ÿ length=4096ÿ type=5ÿ
+[early] [pmm] 	base=75c56000ÿ length=8192ÿ type=0
+[early] [pmm] 	base=75c58000ÿ length=20480ÿ type=5ÿ
+[early] [pmm] 	base=75c5d000ÿ length=68046848ÿ type=6ÿ
+[early] [pmm] 	base=79d42000ÿ length=946176ÿ type=5ÿ
+[early] [pmm] 	base=79e29000ÿ length=3969024ÿ type=0
+[early] [pmm] 	base=7a1f2000ÿ length=499712ÿ type=5ÿ
+[early] [pmm] 	base=7a26c000ÿ length=26345472ÿ type=0
+[early] [pmm] 	base=7bb8c000ÿ length=147456ÿ type=5ÿ
+[early] [pmm] 	base=7bbb0000ÿ length=40800256ÿ type=0
+[early] [pmm] 	base=7e299000ÿ length=20480ÿ type=1ÿ
+[early] [pmm] 	base=7e29e000ÿ length=73728ÿ type=0
+[early] [pmm] 	base=7e2b0000ÿ length=462848ÿ type=5ÿ
+[early] [pmm] 	base=7e321000ÿ length=32768ÿ type=1ÿ
+[early] [pmm] 	base=7e329000ÿ length=933888ÿ type=0
+[early] [pmm] 	base=7e40d000ÿ length=4096ÿ type=5ÿ
+[early] [pmm] 	base=7e40e000ÿ length=12288ÿ type=1ÿ
+[early] [pmm] 	base=7e411000ÿ length=5431296ÿ type=0
+[early] [pmm] 	base=7e93f000ÿ length=790528ÿ type=1ÿ
+[early] [pmm] 	base=7ea00000ÿ length=11456512ÿ type=0
+[early] [pmm] 	base=7f4ed000ÿ length=1048576ÿ type=1ÿ
+[early] [pmm] 	base=7f5ed000ÿ length=1048576ÿ type=1ÿ
+[early] [pmm] 	base=7f6ed000ÿ length=524288ÿ type=1ÿ
+[early] [pmm] 	base=7f76d000ÿ length=73728ÿ type=2ÿ
+[early] [pmm] 	base=7f77f000ÿ length=524288ÿ type=3ÿ
+[early] [pmm] 	base=7f7ff000ÿ length=6295552ÿ type=0
+[early] [pmm] 	base=7fe00000ÿ length=454656ÿ type=5ÿ
+[early] [pmm] 	base=7fe6f000ÿ length=339968ÿ type=0
+[early] [pmm] 	base=7fec2000ÿ length=16384ÿ type=1ÿ
+[early] [pmm] 	base=7fec6000ÿ length=8192ÿ type=3ÿ
+[early] [pmm] 	base=7fec8000ÿ length=180224ÿ type=0
+[early] [pmm] 	base=7fef4000ÿ length=540672ÿ type=1ÿ
+[early] [pmm] 	base=7ff78000ÿ length=557056ÿ type=3ÿ
+[early] [pmm] 	base=80000000ÿ length=4096000ÿ type=7ÿ
+[early] [pmm] 	base=e0000000ÿ length=268435456ÿ type=1ÿ
+[early] [pmm] 	base=0 length=0 type=1ÿ
+[early] [pmm] Bitmap size: 65536ÿ bytes (524288ÿ bits)
+[early] [pmm] Free pages: 505420ÿ
+[early] [pmm] First free page is at: 11000ÿ
+[early] [main] PMM initialized
+[early] [main] Initializing GDT
+[early] [main] GDT Initialized
+[early] [main] Initializing interrupt handlers
+[early] [idt] IDT at 80041830ÿ
+[early] [main] Interrupt table loaded
+[early] [isr] ISR table at 8003faa0ÿ
+[early] [idt] Allocating vector 8003f780ÿ=32ÿ
+[early] [main] Interrupts enabled
+[early] [main] Initializing VMM
+[early] [vmm] Kernel physical base: 75c5d000ÿ
+[early] [vmm] Kernel base virtual: 80000000ÿ
+[early] [vmm] Kernel ends at 840e4278ÿ
+[early] [vmm] Mapping 0x75c5d000ÿ to 0x80000000ÿ, length: 0x40e5000ÿ
+[early] [main] VMM initialized
+[early] [main] Loading RSDP
+[early] [main] Found RSDP at 7f77e014ÿ
+[early] [acpi] ACPI Revision: 2ÿ
+[early] [acpi] Searching 6ÿ table entries for HPET
+[early] [acpi] Found header with signature FACP, length=244ÿ
+[early] [acpi] Found header with signature APIC, length=120ÿ
+[early] [acpi] Found header with signature HPET, length=56ÿ
+[early] [acpi] Header located at 7f777000ÿ
+[early] [timer] Reading HPET table at 7f777000ÿ
+[early] [timer] Found HPET memory region at phys fed00000ÿ
+[early] [timer] HPET mapped at virt ffff8000fed00000ÿ
+[0.000] [acpi] rsdt=0 xsdt=7f77d0e8ÿ
+[0.001ÿ] [acpi] Searching 6ÿ table entries for FACP
+[0.002ÿ] [acpi] Found header with signature FACP, length=244ÿ
+[0.003ÿ] [acpi] Header located at 7f779000ÿ
+[0.005ÿ] [acpi] Searching 6ÿ table entries for FACP
+[0.007ÿ] [acpi] Found header with signature FACP, length=244ÿ
+[0.008ÿ] [acpi] Header located at 7f779000ÿ
+[0.009ÿ] [lai] [DEBUG] loaded AML table 'DSDT', total 8457 bytes of AML code.
+[0.015ÿ] [acpi] Searching 6ÿ table entries for SSDT
+[0.016ÿ] [acpi] Found header with signature FACP, length=244ÿ
+[0.018ÿ] [acpi] Found header with signature APIC, length=120ÿ
+[0.019ÿ] [acpi] Found header with signature HPET, length=56ÿ
+[0.021ÿ] [acpi] Found header with signature MCFG, length=60ÿ
+[0.022ÿ] [acpi] Found header with signature WAET, length=40ÿ
+[0.023ÿ] [acpi] Found header with signature BGRT, length=56ÿ
+[0.025ÿ] [acpi] Searching 6ÿ table entries for PSDT
+[0.027ÿ] [acpi] Found header with signature FACP, length=244ÿ
+[0.028ÿ] [acpi] Found header with signature APIC, length=120ÿ
+[0.030ÿ] [acpi] Found header with signature HPET, length=56ÿ
+[0.031ÿ] [acpi] Found header with signature MCFG, length=60ÿ
+[0.032ÿ] [acpi] Found header with signature WAET, length=40ÿ
+[0.034ÿ] [acpi] Found header with signature BGRT, length=56ÿ
+[0.035ÿ] [lai] [DEBUG] ACPI namespace created, total of 260 predefined objects.
+[0.037ÿ] [acpi] Enabling ACPI mode in LAI
+[0.039ÿ] [lai] [DEBUG] attempt to enable ACPI...
+[0.042ÿ] [lai] [DEBUG] evaluated \_SB_.PCI0.PRES._INI
+[0.151ÿ] [lai] [DEBUG] evaluated \._PIC(1)
+[0.161ÿ] [lai] [DEBUG] wrote event register value 0x8300
+[0.163ÿ] [lai] [DEBUG] ACPI is now enabled.
+[0.165ÿ] [acpi] ACPI mode enabled
+[0.166ÿ] [acpi] Initializing MADT
+[0.168ÿ] [acpi] Searching 6ÿ table entries for APIC
+[0.169ÿ] [acpi] Found header with signature FACP, length=244ÿ
+[0.171ÿ] [acpi] Found header with signature APIC, length=120ÿ
+[0.172ÿ] [acpi] Header located at 7f778000ÿ
+[0.174ÿ] [acpi/madt] MADT is 120ÿ bytes long
+[0.176ÿ] [acpi/madt] Found header id=0 len=8ÿ
+[0.177ÿ] [acpi/madt] Found local APIC 0
+[0.179ÿ] [acpi/madt] Found header id=1ÿ len=12ÿ
+[0.180ÿ] [acpi/madt] Found IO APIC 0
+[0.182ÿ] [acpi/madt] Found header id=2ÿ len=10ÿ
+[0.183ÿ] [acpi/madt] Found ISO 0
+[0.185ÿ] [acpi/madt] Found header id=2ÿ len=10ÿ
+[0.186ÿ] [acpi/madt] Found ISO 1ÿ
+[0.188ÿ] [acpi/madt] Found header id=2ÿ len=10ÿ
+[0.190ÿ] [acpi/madt] Found ISO 2ÿ
+[0.191ÿ] [acpi/madt] Found header id=2ÿ len=10ÿ
+[0.192ÿ] [acpi/madt] Found ISO 3ÿ
+[0.194ÿ] [acpi/madt] Found header id=2ÿ len=10ÿ
+[0.195ÿ] [acpi/madt] Found ISO 4ÿ
+[0.196ÿ] [acpi/madt] Found header id=4ÿ len=6ÿ
+[0.198ÿ] [acpi/madt] WARNING! Found unknown MADT header 4ÿ
+[0.199ÿ] [acpi] MADT initialized
+[0.200ÿ] [main] Initializing SMP
+[0.202ÿ] [main] SMP response was: 7a1fc000ÿ
+[0.203ÿ] [smp] BSP LAPIC ID: 0
+[0.204ÿ] [smp] Total CPU count: 1ÿ
+[0.205ÿ] [smp] Bringing cpu 0 online
+[0.207ÿ] [smp] Initializing CPU 0
+[0.208ÿ] [idt] IDT at 80041830ÿ
+[0.213ÿ] [fpu] Using legacy fxsave
+[0.215ÿ] [lapic] Calibrating lapic timer for CPU 0 using HPET
+[0.216ÿ] [lapic] Calibration: hpet_elapsed=5598ÿ hpet_freq=125000000ÿ lapic_freq=23414054126ÿ
+[0.218ÿ] [smp] CPU 0 online!
+[0.219ÿ] [smp] All CPUs brought online
+[0.220ÿ] [main] SMP initialized
+[0.222ÿ] [main] Initializing high resolution timer
+[0.223ÿ] [idt] Allocating vector 8003f780ÿ=33ÿ
+[0.225ÿ] [timer] PIT Vector is 0x21ÿ
+[0.226ÿ] [apic] IRQ 0 using override
+[0.228ÿ] [ioapic] Determining IO APIC index from GSI
+[0.230ÿ] [ioapic] Looking through 1ÿ IO-APICs
+[0.231ÿ] [ioapic] Read 170020ÿ from IO APIC reg 1
+[0.233ÿ] [ioapic] gsi=2ÿ madt_io_apics[0].gsib=0, io_apic_gsi_count(0)=23ÿ
+[0.234ÿ] [ioapic] Read 170020ÿ from IO APIC reg 1
+[0.236ÿ] [ioapic] Writing 21ÿ to register 14ÿ in IO APIC 0
+[0.238ÿ] [ioapic] Writing 0 to register 15ÿ in IO APIC 0
+[0.240ÿ] [main] High-resolution timer initialized
+[0.242ÿ] [main] Initializing scheduler
+[0.243ÿ] [sched] initialising scheduler
+[0.245ÿ] [idt] Allocating vector 8003f780ÿ=34ÿ
+[0.246ÿ] [sched] Allocated scheduler vector 0x22ÿ
+[0.248ÿ] [main] Scheduler initialized
+[0.250ÿ] [main] Kernel main thread starts at 80026170ÿ
+[0.252ÿ] [sched] Queueing up new kernel thread
+[0.257ÿ] [sched] stack=48f0000ÿ
+[0.259ÿ] [sched] Enqueueing thread 4af1000ÿ
+[0.261ÿ] [main] Pre-startup complete
+[0.638ÿ] [main] Initializing syscall table
+[0.639ÿ] [main] Syscall table initialized
+[0.641ÿ] [main] Initializing socket layer
+[0.643ÿ] [main] Socket layer initialized
+[0.645ÿ] [main] Initializing pipes
+[0.647ÿ] [main] Pipes initialized
+[0.649ÿ] [main] Initializing futex
+[0.651ÿ] [futex] Futexes are not yet properly implemented
+[0.653ÿ] [main] Futex initialized
+[0.655ÿ] [main] Initializing filesystem
+[0.656ÿ] [main] Filesystem initialized
+[0.659ÿ] [main] Enumerating PCI devices
+[0.660ÿ] [acpi] Searching 6ÿ table entries for MCFG
+[0.663ÿ] [acpi] Found header with signature FACP, length=244ÿ
+[0.665ÿ] [acpi] Found header with signature APIC, length=120ÿ
+[0.667ÿ] [acpi] Found header with signature HPET, length=56ÿ
+[0.669ÿ] [acpi] Found header with signature MCFG, length=60ÿ
+[0.671ÿ] [acpi] Header located at 7f776000ÿ
+[0.673ÿ] [pci] Found 1ÿ MCFG table entries
+[0.674ÿ] [pci] MCFG base_address=e0000000ÿ, busses 0 to 255ÿ
+[0.677ÿ] [pci] Found device:
+[0.679ÿ] [pci] 	Vendor name: Intel Corp.
+[0.681ÿ] [pci] 	Device name: Express DRAM Controller
+[0.682ÿ] [pci] 	Device class: Bridge Device, 
+[0.684ÿ] [pci] 	Sub class name: Host Bridge, 
+[0.686ÿ] [pci] 	Prog interface id  : 0
+
+[0.688ÿ] [pci] Found device:
+[0.690ÿ] [pci] 	Vendor id  : 1234ÿ
+[0.692ÿ] [pci] 	Device id  : 1111ÿ
+[0.694ÿ] [pci] 	Device class: Display Controller, 
+[0.695ÿ] [pci] 	Sub class name: VGA Compatible Controller, 
+[0.697ÿ] [pci] 	Prog interface name: VGA Controller
+
+[0.699ÿ] [pci] Found device:
+[0.701ÿ] [pci] 	Vendor name: Intel Corp.
+[0.703ÿ] [pci] 	Device id  : 10d3ÿ
+[0.704ÿ] [pci] 	Device class: Network Controller, 
+[0.706ÿ] [pci] 	sub class id  : 0, 
+[0.707ÿ] [pci] 	Prog interface id  : 0
+
+[0.709ÿ] [pci] Found E1000 Network Card, initializing driver
+[0.711ÿ] [e1000] MAC Address: 52ÿ:54ÿ:0:12ÿ:34ÿ:56ÿ
+[0.713ÿ] [e1000] Activated ethernet card
+[0.715ÿ] [idt] Allocating vector 8003f780ÿ=35ÿ
+[0.717ÿ] [e1000] Allocated interrupt vector 35ÿ
+[0.719ÿ] [pci] find_capability: bus=0 dev=2ÿ func=0 cap_id=5ÿ
+[0.720ÿ] [pci] find_capability: vendor=8086ÿ status=18ÿ caps_bit=1ÿ
+[0.722ÿ] [pci] find_capability: first cap_ptr=c8ÿ
+[0.724ÿ] [pci] find_capability: at cfcÿ found cap_id=31ÿ
+[0.725ÿ] [pci] find_capability: at cfcÿ found cap_id=31ÿ
+[0.727ÿ] [e1000] pci_enable_msi returned 0
+[0.729ÿ] [e1000] IMS register after setup: 1f6dcÿ
+[0.731ÿ] [net] Registering networking device eth0
+[0.732ÿ] [e1000] Sending test ARP request...
+[0.735ÿ] [e1000] ARP request sent, result=42ÿ
+[0.736ÿ] [pci] E1000 Network Card Driver initialized
+[0.738ÿ] [pci] Found device:
+[0.740ÿ] [pci] 	Vendor name: Intel Corp.
+[0.741ÿ] [pci] 	Device name: LPC Interface Controller
+[0.743ÿ] [pci] 	Device class: Bridge Device, 
+[0.745ÿ] [pci] 	Sub class name: ISA Bridge, 
+[0.746ÿ] [pci] 	Prog interface id  : 0
+
+[0.749ÿ] [pci] Found device:
+[0.750ÿ] [pci] 	Vendor name: Intel Corp.
+[0.752ÿ] [pci] 	Device name: 6 port SATA Controller [AHCI mode]
+[0.754ÿ] [pci] 	Device class: Mass Storage Controller, 
+[0.757ÿ] [pci] 	Sub class name: Serial ATA, 
+[0.758ÿ] [pci] 	Prog interface name: AHCI 1.0
+
+[0.760ÿ] [pci] Found device:
+[0.762ÿ] [pci] 	Vendor name: Intel Corp.
+[0.764ÿ] [pci] 	Device name: SMBus Controller
+[0.765ÿ] [pci] 	Device class: Serial Bus Controller, 
+[0.767ÿ] [pci] 	Sub class name: SMBus, 
+[0.769ÿ] [pci] 	Prog interface id  : 0
+
+[0.772ÿ] [main] PCI devices enumerated
+[0.774ÿ] [vfs] Mounted tmpfs to /
+[0.776ÿ] [vfs] Mounted devtmpfs to /dev
+[0.777ÿ] [main] Loading initramfs
+[0.779ÿ] [init] initramfs_begin=75c50000ÿ initramfs_size=20480ÿ
+[0.782ÿ] [init] Initramfs loaded
+[0.784ÿ] [main] initramfs loaded
+[0.785ÿ] [main] Creating streaming devices /dev/null, /dev/full, /dev/zero
+[0.787ÿ] [main] Streaming devices created
+[0.789ÿ] [main] Initializing /dev/random
+[0.791ÿ] [main] /dev/random initialized
+[0.793ÿ] [main] Initializing console
+[0.795ÿ] [idt] Allocating vector 8003f780ÿ=36ÿ
+[0.797ÿ] [console] kbd_vector=24ÿ
+[0.798ÿ] [ioapic] Determining IO APIC index from GSI
+[0.800ÿ] [ioapic] Looking through 1ÿ IO-APICs
+[0.802ÿ] [ioapic] Read 170020ÿ from IO APIC reg 1
+[0.803ÿ] [ioapic] gsi=1ÿ madt_io_apics[0].gsib=0, io_apic_gsi_count(0)=23ÿ
+[0.805ÿ] [ioapic] Read 170020ÿ from IO APIC reg 1
+[0.807ÿ] [ioapic] Writing 24ÿ to register 12ÿ in IO APIC 0
+[0.809ÿ] [ioapic] Writing 0 to register 13ÿ in IO APIC 0
+[0.811ÿ] [main] Console initialized
+[0.813ÿ] [user] starting user program
+[0.815ÿ] [user] Got prog_node 4b87100ÿ
+[0.817ÿ] [user] prog resource 4b89400ÿ
+[0.819ÿ] [user] pagemap 160c0ÿ
+[0.820ÿ] [user] pagemap initialised successfully
+[0.822ÿ] [user] successfully read the first 2 bytes to check for shebang
+[0.824ÿ] [user] determined that we are loading an ELF file
+[0.826ÿ] [user] running elf_load
+[0.828ÿ] [user] elf_load succeeded
+[0.830ÿ] [user] ld_path was NULL
+[0.832ÿ] [user] entry point = 401010ÿ
+[0.834ÿ] [user] replace = false (fork)
+[0.842ÿ] [sched] Enqueueing thread 51b0000ÿ
+[0.844ÿ] [main] Init thread started, handing over control now
+[0.846ÿ] [sched] current thread = 4af1000ÿ
+[0.848ÿ] [user] hello, syscalls!
+

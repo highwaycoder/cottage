@@ -10,7 +10,9 @@
 #include <debug/debug.h>
 #include <drivers/e1000/e1000.h>
 #include <panic.h>
+#include <interrupt/idt.h>
 #include <time/timer.h>
+#include <errno.h>
 
 #define COMMAND_PORT 0xcf8
 #define DATA_PORT 0xcfc
@@ -44,8 +46,7 @@ uint8_t pci_readb(uint16_t bus, uint16_t device, uint16_t function, uint32_t reg
     uint32_t id = 0x1 << 31 | ((bus & 0xFF) << 16) | ((device & 0x1F) << 11) | ((function & 0x07) << 8) | (registeroffset & 0xFC);
 
     outd(COMMAND_PORT, id);
-    uint8_t result = inb(DATA_PORT);
-    return result >> (8 * (registeroffset % 4));
+    return inb(DATA_PORT + (registeroffset & 0x03));
 }
 
 uint16_t pci_readw(uint16_t bus, uint16_t device, uint16_t function, uint32_t registeroffset)
@@ -53,8 +54,7 @@ uint16_t pci_readw(uint16_t bus, uint16_t device, uint16_t function, uint32_t re
     uint32_t id = 0x1 << 31 | ((bus & 0xFF) << 16) | ((device & 0x1F) << 11) | ((function & 0x07) << 8) | (registeroffset & 0xFC);
 
     outd(COMMAND_PORT, id);
-    uint16_t result = inw(DATA_PORT);
-    return result >> (8 * (registeroffset % 4));
+    return inw(DATA_PORT + (registeroffset & 0x02));
 }
 
 uint32_t pci_readd(uint16_t bus, uint16_t device, uint16_t function, uint32_t registeroffset)
@@ -62,22 +62,21 @@ uint32_t pci_readd(uint16_t bus, uint16_t device, uint16_t function, uint32_t re
     uint32_t id = 0x1 << 31 | ((bus & 0xFF) << 16) | ((device & 0x1F) << 11) | ((function & 0x07) << 8) | (registeroffset & 0xFC);
 
     outd(COMMAND_PORT, id);
-    uint32_t result = ind(DATA_PORT);
-    return result >> (8 * (registeroffset % 4));
+    return ind(DATA_PORT);  // DWORD reads are always aligned
 }
 
 void pci_writeb(uint16_t bus, uint16_t device, uint16_t function, uint32_t registeroffset, uint8_t val)
 {
     uint32_t id = 0x1 << 31 | ((bus & 0xFF) << 16) | ((device & 0x1F) << 11) | ((function & 0x07) << 8) | (registeroffset & 0xFC);
     outd(COMMAND_PORT, id);
-    outb(DATA_PORT, val);
+    outb(DATA_PORT + (registeroffset & 0x03), val);
 }
 
 void pci_writew(uint16_t bus, uint16_t device, uint16_t function, uint32_t registeroffset, uint16_t val)
 {
     uint32_t id = 0x1 << 31 | ((bus & 0xFF) << 16) | ((device & 0x1F) << 11) | ((function & 0x07) << 8) | (registeroffset & 0xFC);
     outd(COMMAND_PORT, id);
-    outw(DATA_PORT, val);
+    outw(DATA_PORT + (registeroffset & 0x02), val);
 }
 
 void pci_writed(uint16_t bus, uint16_t device, uint16_t function, uint32_t registeroffset, uint32_t val)
@@ -86,6 +85,7 @@ void pci_writed(uint16_t bus, uint16_t device, uint16_t function, uint32_t regis
     outd(COMMAND_PORT, id);
     outd(DATA_PORT, val);
 }
+
 
 // PCI enumeration runs during single-threaded boot
 NO_THREAD_SAFETY_ANALYSIS
@@ -154,8 +154,7 @@ void enumerate_function(uint64_t address, uint64_t function, __attribute__((unus
             pci_bar_t bar = pci_get_bar(&pci_device_header->BAR0, i, bus, device, function);
             if(bar.type == PCI_BAR_TYPE_MMIO32 || bar.type == PCI_BAR_TYPE_MMIO64)
             {
-                
-                e1000_init(bar.mem_address);
+                e1000_init(bar.mem_address, bus, device, function);
                 init = true;
                 break;
             }
@@ -172,6 +171,56 @@ void enumerate_function(uint64_t address, uint64_t function, __attribute__((unus
         else
             panic("No network card!"); // for now this is the only driver we have
     }
+}
+
+uint8_t pci_find_capability(uint16_t bus, uint16_t dev, uint16_t func, uint8_t cap_id)
+{
+    // Check if capabilities list exists (Status register bit 4)
+    uint16_t status = pci_readw(bus, dev, func, 0x06);
+    if (!(status & (1 << 4))) {
+        return 0; // no capabilities
+    }
+
+    // Get first capability pointer (offset 0x34), mask to align
+    uint8_t cap_ptr = pci_readb(bus, dev, func, 0x34) & 0xFC;
+
+    // Walk the capability list
+    while(cap_ptr != 0) {
+        uint8_t id = pci_readb(bus, dev, func, cap_ptr);
+        if (id == cap_id) {
+            return cap_ptr; // found it!
+        }
+        cap_ptr = pci_readb(bus, dev, func, cap_ptr + 1) & 0xFC;
+    }
+
+    return 0; // not found (device doesn't have capability)
+}
+
+ssize_t pci_enable_msi(uint16_t bus, uint16_t dev, uint16_t func, uint8_t vector, uint8_t lapic_id)
+{
+    uint8_t msi_cap = pci_find_capability(bus, dev, func, 0x05);
+    if(msi_cap == 0) {
+        return -ENOENT; // todo: is this the right errno?
+    }
+    uint16_t msg_ctrl = pci_readw(bus, dev, func, msi_cap + 2);
+    bool is_64bit = (msg_ctrl >> 7) & 1;
+    uint32_t msg_addr = 0xFEE00000 | (lapic_id << 12);
+    uint16_t msg_data = vector;
+
+    pci_writed(bus, dev, func, msi_cap + 4, msg_addr);
+
+    if(is_64bit) {
+        pci_writed(bus, dev, func, msi_cap + 8, 0); // address high write
+        pci_writew(bus, dev, func, msi_cap + 12, msg_data); // data write
+    } else {
+        pci_writew(bus, dev, func, msi_cap + 8, msg_data); // data write
+    }
+
+    // set bit 0 of msg_ctrl (MSI Enable)
+    msg_ctrl |= 1;
+    pci_writew(bus, dev, func, msi_cap + 2, msg_ctrl);
+
+    return 0;
 }
 
 // enables MMIO on this device (by allowing memory space accesses)

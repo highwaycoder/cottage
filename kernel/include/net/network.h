@@ -14,23 +14,31 @@
 
 typedef struct
 {
+    uint16_t length;
+    uint16_t flags;
+} packet_meta_t;
+
+typedef struct 
+{
+    uint8_t* data; // ring of fixed-size slots
+    packet_meta_t* meta; // parallel metadata ring
+    uint32_t slot_count; // number of slots
+    uint16_t slot_size; // size of each slot (hardcoded for now)
+    _Atomic uint32_t head; // consumer reads from here
+    _Atomic uint32_t tail; // producer writes here
+
+    // TODO: signaling
+} packet_queue_t;
+
+#define NET_RECV_BUF_SLOT_SIZE 2048
+
+typedef struct
+{
     // the device's internal name (e.g "E1000")
     const char *name;
     ssize_t (*transmit)(uint8_t* data, uint16_t len);
 
-    // read bytes from here when they become available
-    uint8_t *recv_buf;
-    // when reading, update this to point to the byte after the last byte you read,
-    // wrapping around to 0 if necessary
-    // do not update or use this for writes, use your own internal write pointer
-    uint8_t **recv_buf_read_ptr;
-    // if >0, there are bytes waiting to be read from recv_buf
-    // when reading, decrement for every byte you read
-    // when writing, increment for every byte you write
-    uint32_t recv_buf_len;
-
-    // the size (in bytes) of the receive buffer
-    const uint32_t recv_buf_max;
+    packet_queue_t recv_queue;
 
     // various control flags, used to control the device
     const uint8_t flags;
@@ -55,3 +63,4 @@ void net_register_device(const char *identifier, network_device_t* device);
 bool net_init();
 ssize_t net_write(const char* devid, uint8_t* ptr, size_t len);
 uint8_t* net_get_mac(const char* devid);
+void packet_queue_init(packet_queue_t* queue, uint32_t slot_count);
