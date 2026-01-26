@@ -106,17 +106,19 @@ void tx_init()
         tx_descs[i]->status = TSTA_DD;
     }
 
+    klog("e1000", "TX ring at phys %x, %d descriptors", (uint32_t)(uintptr_t)tx_ptr, E1000_NUM_TX_DESC);
+
     write_command(REG_TXDESCLO, (uint64_t) tx_ptr);
-	write_command(REG_TXDESCHI, 0);
+    write_command(REG_TXDESCHI, 0);
 
-	write_command(REG_TXDESCLEN, E1000_NUM_TX_DESC * 16);
+    write_command(REG_TXDESCLEN, E1000_NUM_TX_DESC * 16);
 
-	write_command(REG_TXDESCHEAD, 0);
-	write_command(REG_TXDESCTAIL, 0);
-	tx_cur = 0;
+    write_command(REG_TXDESCHEAD, 0);
+    write_command(REG_TXDESCTAIL, 0);
+    tx_cur = 0;
 
-	write_command(REG_TCTRL, 0b0110000000000111111000011111010);
-	write_command(REG_TIPG, 0x0060200A);
+    write_command(REG_TCTRL, 0b0110000000000111111000011111010);
+    write_command(REG_TIPG, 0x0060200A);
 
 }
 
@@ -138,16 +140,25 @@ void set_mac_address(uint8_t new_addr[6])
 ssize_t e1000_send(uint8_t* data, uint16_t len)
 {
     if (!(tx_descs[tx_cur]->status & TSTA_DD)) {
+        klog("e1000", "TX: descriptor %d not ready (status=%x)", tx_cur, tx_descs[tx_cur]->status);
         return -ENOBUFS;
     }
+
     uint8_t* virt_buf = (uint8_t *)tx_descs[tx_cur]->addr + HIGHER_HALF;
     memcpy(virt_buf, data, len);
     tx_descs[tx_cur]->length = len;
-    
+
     tx_descs[tx_cur]->cmd = CMD_EOP | CMD_IFCS | CMD_RS;
     tx_descs[tx_cur]->status = 0;
+
+    uint16_t old_cur = tx_cur;
     tx_cur = (tx_cur + 1) % E1000_NUM_TX_DESC;
     write_command(REG_TXDESCTAIL, tx_cur);
+
+    // Read back to verify
+    uint32_t head = read_command(REG_TXDESCHEAD);
+    uint32_t tail = read_command(REG_TXDESCTAIL);
+    klog("e1000", "TX: %d bytes desc %d, HEAD=%d TAIL=%d", len, old_cur, head, tail);
 
     return len;
 }

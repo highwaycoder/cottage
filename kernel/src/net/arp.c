@@ -59,12 +59,14 @@ void net_handle_arp(network_device_t* device, uint8_t* packet, uint16_t len)
     {
         if (memcmp(arp->target_ip, device->ip4, 4) == 0)
         {
+            klog("arp", "ARP request is for us, sending reply");
+
             // hand-craft an ethernet frame for the response
             uint8_t reply[42];
             memcpy(&reply[0], arp->sender_mac, 6);  // dest mac
             memcpy(&reply[6], device->mac, 6);      // src mac
             reply[12] = 0x08; reply[13] = 0x06;     // EtherType: ARP
-            
+
             // ARP header
             reply[14] = 0x00; reply[15] = 0x01;     // Hardware type: Ethernet
             reply[16] = 0x08; reply[17] = 0x00;     // Protocol type: IPv4
@@ -76,7 +78,14 @@ void net_handle_arp(network_device_t* device, uint8_t* packet, uint16_t len)
             memcpy(&reply[32], arp->sender_mac, 6);     // Target MAC (them)
             memcpy(&reply[38], arp->sender_ip, 4);     // Target IP  (them)
 
-            device->transmit(reply, 42);
+            ssize_t sent = device->transmit(reply, 42);
+            klog("arp", "ARP reply transmit returned %d", (int)sent);
+        }
+        else
+        {
+            klog("arp", "ARP not for us (target %d.%d.%d.%d, we are %d.%d.%d.%d)",
+                arp->target_ip[0], arp->target_ip[1], arp->target_ip[2], arp->target_ip[3],
+                device->ip4[0], device->ip4[1], device->ip4[2], device->ip4[3]);
         }
     }
     else if (opcode == ARP_REPLY)

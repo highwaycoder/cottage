@@ -342,8 +342,6 @@ bool enqueue_thread(thread_t *thread, bool by_signal)
     if (atomic_load(&thread->is_in_queue))
         return true;
 
-    klog("sched", "Enqueueing thread %x", thread);
-
     atomic_store(&thread->enqueued_by_signal, by_signal);
 
     for (uint64_t i = 0; i < MAX_THREADS; i++)
