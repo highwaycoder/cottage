@@ -50,6 +50,7 @@ void net_handle_icmp(network_device_t* device, uint8_t* packet, ipv4_header_t* i
                payload_len - sizeof(icmp_header_t));
 
         // 4. Calculate ICMP checksum over ICMP header + data
+        // Store in same byte order that net_checksum reads (little-endian on x86)
         uint16_t cksum = net_checksum(icmp_start, payload_len);
         icmp_start[2] = cksum & 0xFF;
         icmp_start[3] = (cksum >> 8) & 0xFF;

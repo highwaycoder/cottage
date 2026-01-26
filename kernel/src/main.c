@@ -130,6 +130,9 @@ void _start(void)
 
     have_term = true;
 
+    // Initialize lock-free logging ring buffer (must be before first klog call)
+    klog_init();
+
     klog("main", "framebuffer address=%x width=%d height=%d pitch=%d pixel_width=%d", 
             framebuffer->address, 
             framebuffer->width, 
@@ -248,6 +251,9 @@ void _start(void)
 void kmain_thread(void* arg)
 {
     if(arg != NULL) panic("kmain_thread passed a non-null argument");
+
+    // Start the klog consumer thread now that scheduler is running
+    klog_start_consumer();
 
     klog("main", "Initializing syscall table");
     syscall_init();

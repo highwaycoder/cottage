@@ -48,6 +48,7 @@ void sem_wait(semaphore_t* sem) {
         scheduler_dequeue_thread(current_thread);
         lock_release_irqrestore(&sem->lock, flags);
         scheduler_yield(true);
+        klog("sem", "Thread %p woke up from sem_wait", current_thread);
         return;
     }
 }
@@ -80,6 +81,7 @@ void sem_signal(semaphore_t* sem) {
     {
         thread_t* thread = sem->waiters[sem->wait_head];
         sem->wait_head = (sem->wait_head + 1) % SEM_MAX_WAITERS;
+        klog("sem", "Waking waiter %p", thread);
         enqueue_thread(thread, false); // TODO: enqueued_by_signal=false?
     }
     else

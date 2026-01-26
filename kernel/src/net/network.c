@@ -70,9 +70,10 @@ uint16_t ipv4_build_header(uint8_t* buf, uint8_t* src_ip, uint8_t* dest_ip,
     memcpy(&buf[16], dest_ip, 4);       // Destination IP
 
     // Calculate and insert checksum
+    // Store in same byte order that net_checksum reads (little-endian on x86)
     uint16_t cksum = net_checksum(buf, IPV4_HEADER_LEN);
-    buf[10] = (cksum >> 8) & 0xFF;
-    buf[11] = cksum & 0xFF;
+    buf[10] = cksum & 0xFF;
+    buf[11] = (cksum >> 8) & 0xFF;
 
     return IPV4_HEADER_LEN;
 }

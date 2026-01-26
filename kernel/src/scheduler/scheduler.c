@@ -110,7 +110,7 @@ NO_THREAD_SAFETY_ANALYSIS
 void scheduler_isr(__attribute__((unused)) uint32_t num, __attribute__((unused)) cpu_status_t *status)
 {
     sched_isr_count++;  // Increment before any complex code
-    // NOTE: Cannot call klog() from ISR - would deadlock if interrupted code holds klog_lock
+    // NOTE: klog() is now lock-free and safe to call from ISRs
     lapic_timer_stop();
     local_cpu_t *cpu = cpu_get_current();
     atomic_store(&cpu->is_idle, false);
@@ -342,6 +342,7 @@ bool enqueue_thread(thread_t *thread, bool by_signal)
     if (atomic_load(&thread->is_in_queue))
         return true;
 
+    klog("sched", "Enqueueing thread %p (by_signal=%d)", thread, by_signal);
     atomic_store(&thread->enqueued_by_signal, by_signal);
 
     for (uint64_t i = 0; i < MAX_THREADS; i++)

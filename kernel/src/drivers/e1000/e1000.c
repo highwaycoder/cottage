@@ -227,9 +227,9 @@ void e1000_init(uint64_t mmio_address, uint16_t bus, uint16_t device, uint16_t f
 
 void e1000_interrupt_handler(uint32_t num, cpu_status_t* status)
 {
-    // NOTE: Cannot call klog() from ISR - would deadlock if interrupted code holds klog_lock
-    read_command(0xC0); // ICR read clears the interrupt
-    uint16_t new_tail = rx_cur;
+    // NOTE: klog() is now lock-free and safe to call from ISRs
+    uint32_t icr = read_command(0xC0); // ICR read clears the interrupt
+    klog("e1000", "ISR fired, ICR=%x", icr);
     while (rx_descs[rx_cur]->status & 1)
     {
         uint8_t* packet_data = (uint8_t*)(rx_descs[rx_cur]->addr + HIGHER_HALF);
@@ -259,7 +259,10 @@ void e1000_interrupt_handler(uint32_t num, cpu_status_t* status)
         rx_cur = (rx_cur + 1) % E1000_NUM_RX_DESC;
     }
 
-    write_command(REG_RXDESCTAIL, new_tail);
+    // Update TAIL to give processed descriptors back to the NIC
+    // TAIL should point to the last descriptor available to hardware,
+    // which is one position before rx_cur (where we'll read next)
+    write_command(REG_RXDESCTAIL, (rx_cur + E1000_NUM_RX_DESC - 1) % E1000_NUM_RX_DESC);
     lapic_eoi();
 }
 
