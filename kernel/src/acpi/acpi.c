@@ -1,6 +1,7 @@
 #include <acpi/acpi.h>
 #include <acpispec/tables.h>
 #include <klog/klog.h>
+#include <serial/serial.h>
 #include <lai/helpers/sci.h>
 #include <lai/host.h>
 #include <panic.h>

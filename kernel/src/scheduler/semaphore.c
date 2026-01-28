@@ -46,8 +46,9 @@ void sem_wait(semaphore_t* sem) {
         sem->waiters[sem->wait_tail] = current_thread;
         sem->wait_tail = (sem->wait_tail + 1) % SEM_MAX_WAITERS;
         scheduler_dequeue_thread(current_thread);
-        lock_release_irqrestore(&sem->lock, flags);
+        lock_release(&sem->lock);
         scheduler_yield(true);
+        irq_restore(flags);
         klog("sem", "Thread %p woke up from sem_wait", current_thread);
         return;
     }

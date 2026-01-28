@@ -1,6 +1,7 @@
 #include <net/network.h>
 #include <net/ipv4.h>
 #include <net/icmp.h>
+#include <net/udp.h>
 #include <klog/klog.h>
 #include <string.h>
 
@@ -60,7 +61,7 @@ void net_handle_ipv4(network_device_t* device, uint8_t* packet, uint16_t len)
             klog("ipv4", "TCP not yet implemented");
             break;
         case IP_PROTO_UDP:
-            klog("ipv4", "UDP not yet implemented");
+            net_handle_udp(device, packet, ip, payload, payload_len);
             break;
         default:
             klog("ipv4", "Unknown protocol %d", ip->protocol);

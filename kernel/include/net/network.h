@@ -63,6 +63,9 @@ typedef struct
 // compliant filename without any special characters
 void net_register_device(const char *identifier, network_device_t* device);
 
+// look up a registered network device by its identifier
+network_device_t* net_get_device(const char* identifier);
+
 // initialises the network, if there are no devices registered,
 // it will return false.
 bool net_init();

@@ -1,3 +1,4 @@
+#include <serial/serial.h>
 /**
  * Lock-Free Kernel Logging System
  * ================================

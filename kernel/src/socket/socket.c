@@ -1,3 +1,5 @@
+#include <math/minmax.h>
+#include <klog/klog.h>
 #include <net/arp.h>
 #include <net/route.h>
 #include <proc/proc.h>
@@ -11,9 +13,7 @@
 #include <net/network.h>
 #include <net/ipv4.h>
 #include <cpu/cpu.h>
-
-lock_t udp_port_table_lock;
-socket_resource_t* udp_port_table[65536] = {0};
+#include <net/udp.h>
 
 uint16_t get_next_ephemeral_port()
 {
@@ -35,6 +35,7 @@ void socket_init()
 uint64_t sys_socket(uint64_t domain, uint64_t type, uint64_t protocol,
                     uint64_t, uint64_t, uint64_t)
 {
+    klog("socket", "sys_socket called domain=%d type=%d protocol=%d", domain, type, protocol);
     if(domain != AF_IPV4)
     {
         return -EAFNOSUPPORT;
@@ -112,12 +113,14 @@ uint64_t sys_socket(uint64_t domain, uint64_t type, uint64_t protocol,
 
     process->fds[cur_fd] = sock_fd;
     lock_release(&process->fds_lock);
+    klog("socket", "sys_socket returning fd=%d", cur_fd);
     // cast pointer to uint64_t for syscall signature match
     return (uint64_t)cur_fd;
 }
 
 uint64_t sys_bind(uint64_t fd, uint64_t addr, uint64_t, uint64_t, uint64_t, uint64_t)
 {
+    klog("socket", "sys_bind called fd=%d", fd);
     process_t* process = get_current_thread()->process;
     if(fd >= PROC_MAX_FDS)
     {
@@ -220,8 +223,54 @@ uint64_t sys_sendto(uint64_t fd, uint64_t buf, uint64_t len,
 uint64_t sys_recvfrom(uint64_t fd, uint64_t buf, uint64_t len,
                       uint64_t src, uint64_t, uint64_t)
 {
-    (void)fd; (void)buf; (void)len; (void)src;
-    return (uint64_t)-ENOSYS;
+    klog("socket", "sys_recvfrom called fd=%d", fd);
+    // 1. Validate FD and fetch socket_resource_t
+    process_t* process = get_current_thread()->process;
+    if(fd >= PROC_MAX_FDS)
+    {
+        return -EINVAL;
+    }
+    file_descriptor_t* sockfd = process->fds[fd];
+    if (sockfd == NULL)
+    {
+        return -EBADF;
+    }
+    if (sockfd->handle == NULL)
+    {
+        return -EBADF;
+    }
+    if((sockfd->handle->resource->stat.mode & STAT_IFMT) != STAT_IFSOCK)
+    {
+        // not a socket
+        return -ENOTSOCK;
+    }
+    socket_resource_t* sockresource = (socket_resource_t*)sockfd->handle->resource;
+    // 2. Wait for a packet to arrive
+    udp_pcb_t* pcb = (udp_pcb_t*)sockresource->pcb;
+    klog("socket", "sys_recvfrom about to sem_wait");
+    sem_wait(&pcb->sem);
+    klog("socket", "sys_recvfrom woke from sem_wait");
+
+    // 3. Pull the datagram off the queue
+    datagram_t* datagram = pcb->recv_queue[pcb->recv_queue_head];
+    if(datagram == NULL)
+    {
+        // weird situation but could happen I guess, if we wrote a bug
+        klog("socket", "UDP receive thread woke up with no packet in the queue to read");
+        return -EINVAL;
+    }
+    pcb->recv_queue_head = (pcb->recv_queue_head + 1) % RECV_QUEUE_SIZE;
+    // 3a. Set src (remote addr)
+    if (src != 0)
+        *((net_addr_t*)src) = datagram->remote_addr;
+    // 4. Pass datagram payload to the caller
+    uint8_t* caller_buf = (uint8_t*)buf;
+    uint64_t result_len = min(len, datagram->len);
+    memcpy(caller_buf, datagram->payload, result_len);
+    free(datagram);
+
+
+    return result_len;
 }
 
 uint64_t sys_close_socket(uint64_t fd, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)

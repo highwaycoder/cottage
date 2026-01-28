@@ -17,6 +17,7 @@
 #include <fs/fs.h>
 #include <term/term.h>
 #include <lock/lock.h>  // For NO_THREAD_SAFETY_ANALYSIS
+#include <serial/serial.h>  // For debug print_serial
 
 // use 2MB stack, similar to Linux
 #define STACK_SIZE (uint64_t)(0x200000)
@@ -120,6 +121,11 @@ void scheduler_isr(__attribute__((unused)) uint32_t num, __attribute__((unused))
 
     if (current_thread != 0)
     {
+        // NOTE: On a thread's first preemption (before it ever calls scheduler_yield),
+        // yield_await was never acquired, so this release is a no-op. Debug builds
+        // will warn about "releasing unheld lock" but this is harmless - setting
+        // is_locked=false when already false has no effect. This happens exactly
+        // once per thread lifetime.
         lock_release(&current_thread->yield_await);
 
         // the happy case, we're just running the same thread again
@@ -620,13 +626,15 @@ thread_t* new_user_thread(
             stack = stack - (strlen(argv[i]) + 1);
             memcpy(stack, argv[i], strlen(argv[i]) + 1);
         }
-
-		// re-align stack pointer to 16 bytes
         if (((argc + envc + 1) & 1) != 0)
-        {
             stack--;
-        }
-
+        /* -- this is *possibly* more correct, but seems to introduce
+         * more bugs, so we've reverted to the above realignment for now
+        uint64_t string_slots = stack_top - stack;
+        uint64_t structured_slots = 13 + argc + envc;
+        if((string_slots + structured_slots) & 1)
+            stack--;
+        */
 
 		// the last element on the stack is the aux vector as per POSIX:
         // ref: https://www.gnu.org/software/libc/manual/html_node/Auxiliary-Vector.html
@@ -676,7 +684,7 @@ thread_t* new_user_thread(
         stack[0] = argc;
 
 		// reduce the stack pointer by the number of elements we just pushed
-        t->cpu_state.rsp -= (stack_top - stack);
+        t->cpu_state.rsp -= (stack_top - stack) * sizeof(uint64_t);
     }
 
     if (autoenqueue)

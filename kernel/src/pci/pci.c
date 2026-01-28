@@ -13,6 +13,7 @@
 #include <interrupt/idt.h>
 #include <time/timer.h>
 #include <errno.h>
+#include <serial/serial.h>
 
 #define COMMAND_PORT 0xcf8
 #define DATA_PORT 0xcfc
@@ -343,10 +344,12 @@ void pci_init()
     {
         mcfg_device_config_t *device_config = (mcfg_device_config_t *)(((uint64_t)mcfg_table) + sizeof(mcfg_header_t) + (sizeof(mcfg_device_config_t) * i));
         klog("pci", "MCFG base_address=%lx, busses %d to %d", device_config->base_address, device_config->start_pci_bus, device_config->end_pci_bus);
+        klog("pci", "Starting bus enumeration");
         for (size_t bus = device_config->start_pci_bus; bus < device_config->end_pci_bus; bus++)
         {
             enumerate_bus(device_config->base_address, bus);
         }
+        klog("pci", "Bus enumeration complete");
     }
 }
 

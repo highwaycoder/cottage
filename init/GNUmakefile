@@ -29,7 +29,7 @@ $(eval $(call DEFAULT_VAR,LD,$(DEFAULT_LD)))
 # -Wno-address-of-packed-member is added because GCC is a bit overzealous about emitting this warning
 # and will emit it even when the structure does have good alignment on the target platform.
 # I don't like turning warnings off, but GCC have kind of forced my hand here...
-override DEFAULT_CFLAGS := -g -O2 -pipe -Werror 
+override DEFAULT_CFLAGS := -g -O2 -pipe -Werror -fdiagnostics-absolute-paths 
 $(eval $(call DEFAULT_VAR,CFLAGS,$(DEFAULT_CFLAGS)))
 
 # User controllable C preprocessor flags. We set none by default.
@@ -49,8 +49,9 @@ override CFLAGS += \
     -Wall \
     -Wextra \
     -ffreestanding \
-    -std=c11 \
-    -I../kernel/include/
+    -std=gnu23 \
+    -I../shared/include \
+    -I../kernel/include
     #-march=x86-64
 
 # Internal C preprocessor flags that should not be changed by the user.
@@ -82,8 +83,14 @@ override HEADER_DEPS := $(addprefix obj/,$(CFILES:.c=.c.d) $(ASFILES:.S=.S.d))
 .PHONY: all
 all: bin/$(INITRAMFS_ARCHIVE)
 
-# Make the initramfs archive 
-bin/$(INITRAMFS_ARCHIVE): sysroot/sbin/init
+# Copy shared headers to sysroot for distribution
+.PHONY: install-headers
+install-headers:
+	mkdir -p sysroot/usr/include
+	cp -r ../shared/include/* sysroot/usr/include/
+
+# Make the initramfs archive
+bin/$(INITRAMFS_ARCHIVE): sysroot/sbin/init install-headers
 	mkdir -p "$$(dirname $@)"
 	cd sysroot/ && tar cf ../bin/$(INITRAMFS_ARCHIVE) *
 

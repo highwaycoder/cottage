@@ -26,6 +26,7 @@ uint64_t syscall_handler(uint64_t arg0, uint64_t arg1, uint64_t arg2,
 {
     // get syscall number from current thread
     thread_t* current_thread = get_current_thread();
+    klog("syscall", "syscall_handler called, num=%d", current_thread->syscall_num);
     if (current_thread->syscall_num >= SYSCALL_NUM_ENTRIES) {
         klog_unlocked("syscall", "unrecognised syscall %lu", current_thread->syscall_num);
         return (uint64_t)-1;  // Return error instead of panicking

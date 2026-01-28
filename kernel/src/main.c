@@ -9,6 +9,7 @@
 #include <mem/vmm.h>
 #include <mem/pmm.h>
 #include <net/network.h>
+#include <net/netcfg.h>
 #include <panic.h>
 #include <serial/serial.h>
 #include <stddef.h>
@@ -275,7 +276,7 @@ void kmain_thread(void* arg)
     klog("main", "Initializing filesystem");
     fs_init();
     klog("main", "Filesystem initialized");
-    
+
     klog("main", "Enumerating PCI devices");
     pci_init();
     klog("main", "PCI devices enumerated");
@@ -312,6 +313,9 @@ void kmain_thread(void* arg)
     // todo: write console_init
     console_init();
     klog("main", "Console initialized");
+
+    // initialize network
+    netcfg_init();
 
 #ifdef COTTAGE_STRESS_TEST
     // When stress testing is enabled, run stress tests instead of normal boot

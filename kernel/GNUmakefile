@@ -28,7 +28,7 @@ $(eval $(call DEFAULT_VAR,LD,$(DEFAULT_LD)))
 # -Wno-address-of-packed-member is added because GCC is a bit overzealous about emitting this warning
 # and will emit it even when the structure does have good alignment on the target platform.
 # I don't like turning warnings off, but GCC have kind of forced my hand here...
-override DEFAULT_CFLAGS := -g -O2 -pipe -Werror -Wno-address-of-packed-member -Isrc/lai/include
+override DEFAULT_CFLAGS := -g -O2 -pipe -Werror -Wno-address-of-packed-member -Isrc/lai/include -fdiagnostics-absolute-paths
 $(eval $(call DEFAULT_VAR,CFLAGS,$(DEFAULT_CFLAGS)))
 
 # User controllable C preprocessor flags. We set none by default.
@@ -46,6 +46,7 @@ $(eval $(call DEFAULT_VAR,LDFLAGS,$(DEFAULT_LDFLAGS)))
 # Internal C flags that should not be changed by the user.
 override CFLAGS += \
 	-Iinclude \
+	-I../shared/include \
     -Wall \
     -Wextra \
     -Wreturn-type \

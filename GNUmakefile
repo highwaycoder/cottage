@@ -1,7 +1,7 @@
 # Nuke built-in rules and variables.
 # Auto-detect CPU cores for parallel compilation (override with: make JOBS=4)
 JOBS ?= $(shell nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
-override MAKEFLAGS += -rR -j $(JOBS)
+override MAKEFLAGS += -rR -j $(JOBS) 
 
 override IMAGE_NAME := cottage
 

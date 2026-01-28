@@ -2,39 +2,12 @@
 
 #include <resource/resource.h>
 #include <scheduler/semaphore.h>
-
+#include <net/socket.h>  // Shared public definitions (net_addr_t, AF_*, SOCK_*, PROTO_*)
 
 enum SOCK_STATE {
     SOCK_STATE_CLOSED,
     SOCK_STATE_BOUND,
 };
-
-enum SOCK_DOMAIN {
-    AF_IPV4 = 1,
-    AF_IPV6 = 2,
-    AF_UNIX = 3,
-};
-
-enum SOCK_TYPE {
-    SOCK_STREAM = 1,
-    SOCK_DGRAM  = 2,
-    SOCK_RAW    = 3,
-};
-
-enum SOCK_PROTOCOL {
-    PROTO_UDP = 1,
-    PROTO_TCP = 2,
-};
-
-// TODO: move to a different header?
-typedef struct {
-    uint16_t family;    // discriminant
-    uint16_t port;      // common to both variants
-    union {
-        uint32_t ipv4;
-        uint8_t  ipv6[16];
-    };
-} net_addr_t;
 
 #define RECV_QUEUE_SIZE 32
 
@@ -69,8 +42,6 @@ typedef struct {
     // protocol state
     void* pcb;
 } socket_resource_t;
-
-extern socket_resource_t* udp_port_table[65536];
 
 // TODO: idk if we actually need this function? maybe for initializing the port tables?
 void socket_init();

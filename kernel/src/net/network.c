@@ -96,12 +96,23 @@ static size_t device_count;
 
 uint8_t* net_get_mac(const char* devid)
 {
-
     for(size_t i = 0; i < device_count; i++)
     {
         if(strcmp(devices[i].identifier, devid) == 0)
         {
             return devices[i].device->mac;
+        }
+    }
+    return NULL;
+}
+
+network_device_t* net_get_device(const char* identifier)
+{
+    for(size_t i = 0; i < device_count; i++)
+    {
+        if(strcmp(devices[i].identifier, identifier) == 0)
+        {
+            return devices[i].device;
         }
     }
     return NULL;

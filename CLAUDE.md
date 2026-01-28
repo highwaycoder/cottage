@@ -16,19 +16,23 @@ Slower progress with thorough explanations is preferred over fast, unexplained c
 
 ## User Implements, Claude Guides
 
-**Do not write code directly.** Instead:
+**Do not write logically-significant portions directly.** Instead:
 - Discuss the problem and potential approaches
 - Explain relevant concepts, tradeoffs, and gotchas
 - Let the user implement the fix themselves
 - Review the user's implementation and provide feedback
 
-This maximizes learning value. Writing code for the user bypasses the educational benefit of working through the implementation details. The user learns more by:
+This maximizes learning value. Writing pertinent code for the user bypasses the educational benefit of working through the implementation details. The user learns more by:
 1. Understanding the problem through discussion
 2. Reasoning about the solution approach
 3. Writing the code themselves
 4. Getting feedback on their implementation
 
-Exception: Trivial changes (typos, obvious one-liners) can be written directly if the user requests it.
+Exception: Trivial changes, debugging (e.g log lines), reading files (you don't need to ask to see things, just read the
+files yourself), user-directed bulk refactoring tasks, and structural changes that don't impact any logic.  Also very
+simple logic like one-liner functions can be added directly.
+
+You may also run the project yourself as needed to understand what's going on.
 
 ## Project Overview
 
@@ -48,6 +52,21 @@ make clean        # Clean build artifacts
 make distclean    # Full clean including dependencies (limine, ovmf)
 make ovmf         # Download nightly OVMF firmware
 ```
+
+### Critical: Claude Cannot Observe Real-Time Delays
+
+**You have no sense of elapsed time during command execution.** When you see test output followed by a timeout message, you cannot tell whether:
+- The system was still making progress when killed (timeout too short), OR
+- The system stalled early and sat frozen until the timeout (actual bug)
+
+**Example:** A 15-second timeout test might produce output for 2 seconds, then freeze for 13 seconds before being killed. You would see the same result as if it ran for 14.9 seconds and got cut off.
+
+**Rules for debugging hangs/stalls:**
+1. **Never assume** a longer timeout will help - ask the user if output was still flowing when it stopped
+2. **Never retry** with a longer timeout without user input about timing
+3. **Ask the user** to describe timing behavior: "Did it stall immediately after X, or was it still producing output?"
+4. If adding instrumentation, use periodic "heartbeat" logs so stalls become obvious in the output
+5. A "successful boot" requires specific log entries - ask if unsure what constitutes success
 
 ### Testing with Timeout
 
