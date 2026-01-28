@@ -1,3 +1,4 @@
+#include <net/endian.h>
 #include <net/network.h>
 #include <klog/klog.h>
 #include <stdbool.h>
@@ -76,6 +77,18 @@ uint16_t ipv4_build_header(uint8_t* buf, uint8_t* src_ip, uint8_t* dest_ip,
     buf[11] = (cksum >> 8) & 0xFF;
 
     return IPV4_HEADER_LEN;
+}
+
+uint16_t udp_build_header(uint8_t* buf, uint16_t src_port, uint16_t dst_port, uint16_t payload_len)
+{
+    memset(buf, 0, UDP_HEADER_LEN);
+    uint16_t src_port_n = htons(src_port);
+    uint16_t dest_port_n = htons(dst_port);
+    uint16_t payload_len_n = htons(payload_len);
+    memcpy(&buf[0], &src_port_n, 2);
+    memcpy(&buf[2], &dest_port_n, 2);
+    memcpy(&buf[4], &payload_len_n, 2);
+    return UDP_HEADER_LEN;
 }
 
 static network_device_descriptor_t* devices = NULL;

@@ -34,7 +34,7 @@ typedef struct
 
 #define NET_RECV_BUF_SLOT_SIZE 2048
 
-typedef struct
+typedef struct network_device_s
 {
     // the device's internal name (e.g "E1000")
     const char *name;
@@ -90,9 +90,25 @@ uint16_t eth_build_header(uint8_t* buf, uint8_t* dest_mac, uint8_t* src_mac, uin
 uint16_t ipv4_build_header(uint8_t* buf, uint8_t* src_ip, uint8_t* dest_ip,
                            uint8_t protocol, uint16_t payload_len, uint8_t ttl);
 
+// Build UDP header at buf[0..7] (no options)
+// Returns 8 (UDP_HEADER_LEN)
+uint16_t udp_build_header(uint8_t* buf, uint16_t src_port, uint16_t dst_port, uint16_t payload_len);
+
 // Internet checksum (RFC 1071) - used for IPv4 header, ICMP, UDP, etc.
 uint16_t net_checksum(void* data, uint16_t len);
 
 // Header sizes
 #define ETH_HEADER_LEN  14
 #define IPV4_HEADER_LEN 20  // Minimum, without options
+#define UDP_HEADER_LEN 8
+
+// EtherType
+#define ETHERTYPE_IPV4 0x0800
+#define ETHERTYPE_ARP  0x0806
+
+// TTL
+#define DEFAULT_TTL 64
+
+// Ephemeral port range
+#define EPHEMERAL_PORT_MIN 49152
+#define EPHEMERAL_PORT_MAX 65535

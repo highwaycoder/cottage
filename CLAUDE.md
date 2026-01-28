@@ -32,7 +32,7 @@ Exception: Trivial changes (typos, obvious one-liners) can be written directly i
 
 ## Project Overview
 
-Cottage is an experimental x86_64 operating system with a kernel-space web server. The goal is an OS whose userspace is created primarily using JavaScript running in a browser. Written in C (GNU11) and x86_64 assembly.
+Cottage is an experimental x86_64 operating system with a kernel-space web server. The goal is an OS whose userspace is created primarily using JavaScript running in a browser. Written in C (GNU23) and x86_64 assembly.
 
 ## Build Commands
 

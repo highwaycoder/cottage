@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <net/network.h>
+#include <net/endian.h>
 
 // IPv4 header structure (follows 14-byte Ethernet header)
 // Note: Options can extend the header beyond 20 bytes - check ihl field
@@ -23,15 +24,3 @@ typedef struct __attribute__((packed)) {
 #define IP_PROTO_ICMP  1
 #define IP_PROTO_TCP   6
 #define IP_PROTO_UDP   17
-
-// Helper to convert 16-bit network byte order to host
-static inline uint16_t ntohs(uint16_t netshort)
-{
-    return (netshort >> 8) | (netshort << 8);
-}
-
-// Helper to convert 16-bit host byte order to network
-static inline uint16_t htons(uint16_t hostshort)
-{
-    return (hostshort >> 8) | (hostshort << 8);
-}

@@ -53,7 +53,7 @@ override CFLAGS += \
     -Wno-implicit-fallthrough \
     -Wno-unused-parameter \
     -Wthread-safety \
-    -std=gnu11 \
+    -std=gnu23 \
     -ffreestanding \
     -fno-stack-protector \
     -fno-stack-check \

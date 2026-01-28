@@ -3,7 +3,15 @@
 #include <stdint.h>
 
 // the very first syscall, a simple "klog" wrapper
-#define SYS_KLOG 0
+enum {
+	SYS_KLOG            = 0,
+	SYS_SOCKET          = 1,
+	SYS_BIND            = 2,
+	SYS_SENDTO          = 3,
+	SYS_RECVFROM        = 4,
+	SYS_CLOSE_SOCKET    = 5,
+    SYSCALL_NUM_ENTRIES,
+};
 
 // Assembly entry point for syscall instruction (defined in syscall_entry.S)
 extern void syscall_entry_asm();

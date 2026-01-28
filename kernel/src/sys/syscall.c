@@ -2,8 +2,7 @@
 #include <panic.h>
 #include <klog/klog.h>
 #include <proc/proc.h>
-
-#define SYSCALL_NUM_ENTRIES 1
+#include <socket/socket.h>
 
 typedef uint64_t (*syscall_fn_t)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
 
@@ -38,5 +37,10 @@ uint64_t syscall_handler(uint64_t arg0, uint64_t arg1, uint64_t arg2,
 
 void syscall_init()
 {
-    syscall_table[SYS_KLOG] = (syscall_fn_t) syscall_klog;
+    syscall_table[SYS_KLOG            ] = syscall_klog;
+	syscall_table[SYS_SOCKET          ] = sys_socket;
+	syscall_table[SYS_BIND            ] = sys_bind;
+	syscall_table[SYS_SENDTO          ] = sys_sendto;
+	syscall_table[SYS_RECVFROM        ] = sys_recvfrom;
+	syscall_table[SYS_CLOSE_SOCKET    ] = sys_close_socket;
 }
