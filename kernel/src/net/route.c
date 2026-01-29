@@ -126,6 +126,7 @@ bool route_lookup(uint32_t dest_ip, route_result_t* result)
     {
         result->next_hop = route_table[best_match].gateway;
     }
+
     lock_release(&route_table_lock);
     return true;
 }

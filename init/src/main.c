@@ -78,7 +78,7 @@ int main(void)
     net_addr_t bind_addr = {
         .ipv4 = 0x0A00020F, // 10.0.2.15
         .family = AF_IPV4,
-        .port = 0x391E,
+        .port = 0x611E,
     };
     bind(sockfd, &bind_addr);
     while(1)

@@ -22,7 +22,7 @@ void netcfg_init(void)
     // 10.0.2.0/24 via eth0, on-link
     route_add(htonl(0x0A000200), htonl(0xFFFFFF00), 0, eth0, 0,
                ROUTE_FLAG_UP);
-    // 0.0.0.0/24 via eth0, gateway 10.0.2.2
+    // 0.0.0.0/0 via eth0, gateway 10.0.2.2
     route_add(0, 0, htonl(0x0A000202), eth0, 100,
                ROUTE_FLAG_UP | ROUTE_FLAG_GATEWAY);
     klog("netcfg", "network configuration applied");

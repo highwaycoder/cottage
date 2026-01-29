@@ -23,11 +23,19 @@ enum SOCK_PROTOCOL {
 };
 
 // Network address structure
+//
+// BYTE ORDER CONVENTION: All address and port fields are stored in network byte
+// order (big-endian). This matches the wire format and avoids repeated conversions
+// when passing addresses between the socket layer, routing, and packet building.
+//
+// When populating from userspace, use htons()/htonl() on host-order values.
+// When reading for display or host-side arithmetic, use ntohs()/ntohl().
+// When copying from packet headers, use memcpy() to preserve wire order.
 typedef struct {
     uint16_t family;    // AF_IPV4, AF_IPV6, etc.
     uint16_t port;      // Port number (network byte order)
     union {
-        uint32_t ipv4;
+        uint32_t ipv4;  // IPv4 address (network byte order)
         uint8_t  ipv6[16];
     };
 } net_addr_t;

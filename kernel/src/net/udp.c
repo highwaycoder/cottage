@@ -18,7 +18,6 @@ void net_handle_udp(network_device_t* device, uint8_t* packet, ipv4_header_t* ip
     }
     udp_header_t* udp_header = (udp_header_t*)payload;
     uint16_t dest_port = ntohs(udp_header->dest_port);
-    uint16_t source_port = ntohs(udp_header->src_port);
     socket_resource_t* socket_resource = udp_port_table[dest_port];
     if(socket_resource == NULL)
     {
@@ -33,9 +32,9 @@ void net_handle_udp(network_device_t* device, uint8_t* packet, ipv4_header_t* ip
         return;
     }
     datagram_t* datagram = malloc(sizeof(datagram_t) + payload_len - 8);
-    datagram->remote_addr.ipv4 = ip4_from_bytes(ip->src_ip);
+    memcpy(&datagram->remote_addr.ipv4, ip->src_ip, 4);
     datagram->remote_addr.family = AF_IPV4;
-    datagram->remote_addr.port = source_port;
+    datagram->remote_addr.port = udp_header->src_port;
     datagram->len = payload_len - 8;
     memcpy(datagram->payload, payload + 8, payload_len - 8);
 

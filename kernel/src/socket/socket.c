@@ -176,19 +176,15 @@ uint64_t sys_sendto(uint64_t fd, uint64_t buf, uint64_t len,
     // ethernet, ipv4, UDP headers, plus payload
     size_t total_len = ETH_HEADER_LEN + IPV4_HEADER_LEN + UDP_HEADER_LEN + len;
     route_result_t route;
-    if(!route_lookup(ntohl(dest_addr->ipv4), &route))
+    if(!route_lookup(dest_addr->ipv4, &route))
     {
         // TODO: error handling
         return -ENOSYS;
     }
     uint8_t next_hop_bytes[4];
-    ip4_to_bytes(route.next_hop, next_hop_bytes);
+    ip4_to_bytes(ntohl(route.next_hop), next_hop_bytes);
     uint8_t dest_mac[6];
-    if(!arp_lookup(route.device, next_hop_bytes, dest_mac))
-    {
-        // TODO: queue packet while arp request finishes
-        return -ENOSYS;
-    }
+    bool arp_cache_hit = arp_lookup(route.device, next_hop_bytes, dest_mac);
     uint8_t* packet = malloc(total_len);
     uint8_t dest_addr_bytes[4];
     ip4_to_bytes(ntohl(dest_addr->ipv4), dest_addr_bytes);
@@ -212,6 +208,14 @@ uint64_t sys_sendto(uint64_t fd, uint64_t buf, uint64_t len,
     }
     udp_build_header(&packet[ETH_HEADER_LEN+IPV4_HEADER_LEN], source_port, ntohs(dest_addr->port), len);
     memcpy(&packet[ETH_HEADER_LEN+IPV4_HEADER_LEN+UDP_HEADER_LEN], payload, len);
+
+    if(!arp_cache_hit)
+    {
+        // on arp cache misses, enqueue the packet to let arp return, then pretend the packet sent already (bit of a
+        // cheeky lie but it's necessary)
+        arp_pending_enqueue(packet, total_len, next_hop_bytes);
+        return len;
+    }
 
     // finally we have the complete packet!
     route.device->transmit(packet, total_len);

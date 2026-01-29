@@ -10,6 +10,7 @@
 #include <stdatomic.h>
 #include <scheduler/semaphore.h>
 #include <scheduler/scheduler.h>
+#include <net/arp.h>
 
 // Internet checksum (RFC 1071)
 // Works for IPv4 header, ICMP, UDP, TCP, etc.
@@ -84,7 +85,7 @@ uint16_t udp_build_header(uint8_t* buf, uint16_t src_port, uint16_t dst_port, ui
     memset(buf, 0, UDP_HEADER_LEN);
     uint16_t src_port_n = htons(src_port);
     uint16_t dest_port_n = htons(dst_port);
-    uint16_t payload_len_n = htons(payload_len);
+    uint16_t payload_len_n = htons(payload_len + UDP_HEADER_LEN);
     memcpy(&buf[0], &src_port_n, 2);
     memcpy(&buf[2], &dest_port_n, 2);
     memcpy(&buf[4], &payload_len_n, 2);
@@ -171,6 +172,9 @@ ssize_t net_write(const char* devid, uint8_t* ptr, size_t len)
 bool net_init()
 {
     if(device_count == 0) return false;
+    
+    // intialize arp queue
+    arp_pending_init();
 
     return true;
 }

@@ -3,6 +3,7 @@
 #include <net/endian.h>
 #include <klog/klog.h>
 #include <string.h>
+#include <mem/malloc.h>
 
 // ARP cache
 typedef struct {
@@ -135,5 +136,59 @@ void net_handle_arp(network_device_t* device, uint8_t* packet, uint16_t len)
             memcpy(&arp_cache[last_arp_cache_entry].mac, arp->sender_mac, 6);
             last_arp_cache_entry++;
         }
+        arp_pending_drain(device, arp->sender_ip, arp->sender_mac);
+    }
+}
+
+// --- ARP pending packet queue ---
+
+static arp_pending_entry_t arp_pending_queue[ARP_PENDING_QUEUE_SIZE];
+static uint32_t arp_pending_head = 0; // oldest entry
+static uint32_t arp_pending_tail = 0; // next write slot
+
+void arp_pending_init(void)
+{
+    memset(arp_pending_queue, 0, sizeof(arp_pending_queue));
+    arp_pending_head = 0;
+    arp_pending_tail = 0;
+}
+
+void arp_pending_enqueue(uint8_t* packet, uint16_t len, uint8_t target_ip[4])
+{
+    arp_pending_entry_t* slot = &arp_pending_queue[arp_pending_tail];
+
+    // If we're about to overwrite an occupied slot, free its packet and advance head
+    if (slot->occupied)
+    {
+        free(slot->packet);
+        arp_pending_head = (arp_pending_head + 1) % ARP_PENDING_QUEUE_SIZE;
+    }
+
+    slot->packet = packet;
+    slot->len = len;
+    memcpy(slot->target_ip, target_ip, 4);
+    slot->occupied = true;
+
+    arp_pending_tail = (arp_pending_tail + 1) % ARP_PENDING_QUEUE_SIZE;
+}
+
+void arp_pending_drain(network_device_t* device, uint8_t resolved_ip[4], uint8_t resolved_mac[6])
+{
+    for (uint32_t i = 0; i < ARP_PENDING_QUEUE_SIZE; i++)
+    {
+        arp_pending_entry_t* slot = &arp_pending_queue[i];
+        if (!slot->occupied) continue;
+        if (memcmp(slot->target_ip, resolved_ip, 4) != 0) continue;
+
+        // Fill in the destination MAC (first 6 bytes of Ethernet header)
+        memcpy(slot->packet, resolved_mac, 6);
+
+        // Transmit
+        device->transmit(slot->packet, slot->len);
+
+        // Free and clear the slot
+        free(slot->packet);
+        slot->packet = NULL;
+        slot->occupied = false;
     }
 }
